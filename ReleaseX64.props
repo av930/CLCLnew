@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <OutDir>$(MSBuildThisFileDirectory)x64\Release\</OutDir>
+    <IntDir>$(MSBuildThisFileDirectory)x64\obj\$(MSBuildProjectName)\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+    <X64Definitions>WIN32;NDEBUG;_WINDOWS;UNICODE;_UNICODE;OP_XP_STYLE;LC_JP</X64Definitions>
+    <X64Definitions Condition="'$(MSBuildProjectName)'=='CLCLHook'">WIN32;NDEBUG;_WINDOWS;_USRDLL;CLCLHOOK_EXPORTS</X64Definitions>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <StringPooling>true</StringPooling>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>$(X64Definitions);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <SubSystem Condition="'$(MSBuildProjectName)'=='CLCLHook'">Console</SubSystem>
+      <AdditionalDependencies>Comctl32.lib;imm32.lib;Shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ModuleDefinitionFile Condition="'$(MSBuildProjectName)'=='CLCL'">$(ProjectDir)clcl.def</ModuleDefinitionFile>
+      <ModuleDefinitionFile Condition="'$(MSBuildProjectName)'=='CLCLHook'">$(ProjectDir)Hook.def</ModuleDefinitionFile>
+    </Link>
+    <Manifest>
+      <AdditionalManifestFiles Condition="'$(MSBuildProjectName)'!='CLCLHook'">$(ProjectDir)res\manifest.xml;%(AdditionalManifestFiles)</AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
+</Project>

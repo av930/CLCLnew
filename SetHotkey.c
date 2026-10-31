@@ -66,7 +66,7 @@ static BOOL CALLBACK set_hotkey_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM
 			CheckDlgButton(hDlg, IDC_CHECK_PASTE, 1);
 		}
 
-		SetWindowLong(hDlg, GWL_USERDATA, lParam);
+		SetWindowLongPtr(hDlg, GWLP_USERDATA, lParam);
 		break;
 
 	case WM_CLOSE:
@@ -80,7 +80,7 @@ static BOOL CALLBACK set_hotkey_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM
 			break;
 
 		case IDOK:
-			di = (DATA_INFO *)GetWindowLong(hDlg, GWL_USERDATA);
+			di = (DATA_INFO *)GetWindowLongPtr(hDlg, GWLP_USERDATA);
 			if (di == NULL) {
 				EndDialog(hDlg, FALSE);
 				break;

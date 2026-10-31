@@ -3068,13 +3068,13 @@ static BOOL viewer_initialize(const HWND hWnd)
 	// ポップアップメニューにツールメニューを関連付ける
 	GetMenuString(GetMenu(hWnd), WINDOW_MENU_TOOL, buf, BUF_SIZE - 1, MF_BYPOSITION);
 	ModifyMenu(GetSubMenu(h_popup_menu, POPUPMENU_HISTORY), ID_MENUITEM_TOOL_MENU, MF_POPUP,
-		(UINT)GetSubMenu(GetMenu(hWnd), WINDOW_MENU_TOOL), buf);
+		(UINT_PTR)GetSubMenu(GetMenu(hWnd), WINDOW_MENU_TOOL), buf);
 	ModifyMenu(GetSubMenu(h_popup_menu, POPUPMENU_HISTORY_LV), ID_MENUITEM_TOOL_MENU, MF_POPUP,
-		(UINT)GetSubMenu(GetMenu(hWnd), WINDOW_MENU_TOOL), buf);
+		(UINT_PTR)GetSubMenu(GetMenu(hWnd), WINDOW_MENU_TOOL), buf);
 	ModifyMenu(GetSubMenu(h_popup_menu, POPUPMENU_REGIST), ID_MENUITEM_TOOL_MENU, MF_POPUP,
-		(UINT)GetSubMenu(GetMenu(hWnd), WINDOW_MENU_TOOL), buf);
+		(UINT_PTR)GetSubMenu(GetMenu(hWnd), WINDOW_MENU_TOOL), buf);
 	ModifyMenu(GetSubMenu(h_popup_menu, POPUPMENU_REGIST_LV), ID_MENUITEM_TOOL_MENU, MF_POPUP,
-		(UINT)GetSubMenu(GetMenu(hWnd), WINDOW_MENU_TOOL), buf);
+		(UINT_PTR)GetSubMenu(GetMenu(hWnd), WINDOW_MENU_TOOL), buf);
 	// ツールメニューにツールを設定
 	for (i = 0; i < option.tool_cnt; i++) {
 		if (!((option.tool_info + i)->call_type & CALLTYPE_VIEWER)) {

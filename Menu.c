@@ -1148,7 +1148,7 @@ static BOOL menu_set_item(const HDC hdc, const HMENU hMenu, MENU_ITEM_INFO *mii,
 			hPopupMenu = CreatePopupMenu();
 			menu_set_item(hdc, hPopupMenu, (mii + i)->mii, (mii + i)->mii_cnt);
 			// メニュー項目の追加
-			AppendMenu(hMenu, (mii + i)->flag | menu_flag, (UINT)hPopupMenu, (mii + i)->item);
+			AppendMenu(hMenu, (mii + i)->flag | menu_flag, (UINT_PTR)hPopupMenu, (mii + i)->item);
 		} else {
 			// メニュー項目の追加
 			AppendMenu(hMenu, (mii + i)->flag | menu_flag, (mii + i)->id, (mii + i)->item);

@@ -1075,13 +1075,13 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 //		SetBkMode(bf->mdc, TRANSPARENT);
 
 		// buffer info to window long
-		SetWindowLong(hWnd, GWL_USERDATA, (LPARAM)bf);
+		SetWindowLongPtr(hWnd, GWLP_USERDATA, (LPARAM)bf);
 		ImmAssociateContext(hWnd, (HIMC)NULL);
 		break;
 
 	case WM_DPICHANGED_AFTERPARENT:
 		// フォントと文字サイズの作り直し
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL ||
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL ||
 			SetDpiFromWindow(hWnd) == bf->font_dpi) {
 			break;
 		}
@@ -1097,8 +1097,8 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_DESTROY:
 		// ウィンドウの破棄
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) != NULL) {
-			SetWindowLong(hWnd, GWL_USERDATA, (LPARAM)0);
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) != NULL) {
+			SetWindowLongPtr(hWnd, GWLP_USERDATA, (LPARAM)0);
 #ifdef OP_XP_STYLE
 			// XP
 			theme_close(bf->hTheme);
@@ -1120,7 +1120,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_SIZE:
 		// サイズ変更
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 
@@ -1138,7 +1138,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_SETFOCUS:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		// 選択文字のある行を再描画
@@ -1146,7 +1146,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_KILLFOCUS:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		// 選択文字のある行を再描画
@@ -1157,7 +1157,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		return DLGC_WANTALLKEYS;
 
 	case WM_HSCROLL:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		GetClientRect(hWnd, &rect);
@@ -1207,7 +1207,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_VSCROLL:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		GetClientRect(hWnd, &rect);
@@ -1264,7 +1264,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_LBUTTONDOWN:
 		SetFocus(hWnd);
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		binview_flush(bf);
@@ -1288,7 +1288,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_KEYDOWN:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		GetClientRect(hWnd, &rect);
@@ -1450,7 +1450,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_CHAR:
 		// 入力
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL ||
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL ||
 			bf->lock == TRUE || option.bin_lock != 0) {
 			break;
 		}
@@ -1458,7 +1458,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_PAINT:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) != NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) != NULL) {
 			PAINTSTRUCT ps;
 
 			hdc = BeginPaint(hWnd, &ps);
@@ -1487,14 +1487,14 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 #ifdef OP_XP_STYLE
 	case WM_NCPAINT:
 		// XP用の背景描画
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL ||
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL ||
 			theme_draw(hWnd, (HRGN)wParam, bf->hTheme) == FALSE) {
 			return DefWindowProc(hWnd, msg, wParam, lParam);
 		}
 		break;
 
 	case WM_THEMECHANGED:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		// XPテーマの変更
@@ -1506,7 +1506,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 	case WM_UNDO:
 	case EM_UNDO:
 		// 元に戻す
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL ||
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL ||
 			bf->lock == TRUE || option.bin_lock != 0) {
 			break;
 		}
@@ -1515,7 +1515,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case EM_REDO:
 		// やり直し
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL ||
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL ||
 			bf->lock == TRUE || option.bin_lock != 0) {
 			break;
 		}
@@ -1523,14 +1523,14 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case EM_CANUNDO:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL ||
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL ||
 			bf->lock == TRUE || option.bin_lock != 0) {
 			return FALSE;
 		}
 		return ((bf->undo_len > 0) ? TRUE : FALSE);
 
 	case EM_CANREDO:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL ||
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL ||
 			bf->lock == TRUE || option.bin_lock != 0) {
 			return FALSE;
 		}
@@ -1538,7 +1538,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_SET_BINDATA:
 		// データ設定
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		// 初期化
@@ -1580,7 +1580,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_SAVE_BINDATA:
 		// データ保存
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL || bf->modified == FALSE) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL || bf->modified == FALSE) {
 			return FALSE;
 		}
 		if ((DATA_INFO *)lParam != NULL) {
@@ -1600,7 +1600,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_SET_SCROLLBAR:
 		// スクロールバー設定
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		binview_set_scrollbar(hWnd, bf);
@@ -1608,7 +1608,7 @@ static LRESULT CALLBACK binview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_SHOW_MENU:
 		// メニュー表示
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) != NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) != NULL) {
 			HMENU hMenu;
 			POINT apos;
 

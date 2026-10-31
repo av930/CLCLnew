@@ -117,7 +117,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		bf->stretch_mode = option.fmt_bmp_stretch_mode;
 		bf->scale = 100;
 
-		SetWindowLong(hWnd, GWL_USERDATA, (LPARAM)bf);
+		SetWindowLongPtr(hWnd, GWLP_USERDATA, (LPARAM)bf);
 		ImmAssociateContext(hWnd, (HIMC)NULL);
 		break;
 
@@ -127,8 +127,8 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_DESTROY:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) != NULL) {
-			SetWindowLong(hWnd, GWL_USERDATA, (LPARAM)0);
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) != NULL) {
+			SetWindowLongPtr(hWnd, GWLP_USERDATA, (LPARAM)0);
 
 #ifdef OP_XP_STYLE
 			// XP
@@ -149,7 +149,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_SIZE:
 		// サイズ変更
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 
@@ -181,7 +181,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		return DLGC_WANTALLKEYS;
 
 	case WM_LBUTTONDOWN:
-		if ((bf = (BUFFER*)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER*)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		SetFocus(hWnd);
@@ -192,7 +192,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_MOUSEMOVE:
-		if ((bf = (BUFFER*)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER*)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		if (!bf->drag) {
@@ -215,7 +215,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_LBUTTONUP:
-		if ((bf = (BUFFER*)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER*)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		SetFocus(hWnd);
@@ -233,7 +233,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_PAINT:
 		// 描画
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		hdc = BeginPaint(hWnd, &ps);
@@ -282,14 +282,14 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 #ifdef OP_XP_STYLE
 	case WM_NCPAINT:
 		// XP用の背景描画
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL ||
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL ||
 			theme_draw(hWnd, (HRGN)wParam, bf->hTheme) == FALSE) {
 			return DefWindowProc(hWnd, msg, wParam, lParam);
 		}
 		break;
 
 	case WM_THEMECHANGED:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		// XPテーマの変更
@@ -477,7 +477,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_SET_BMPDATA:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		if (bf->hbmp != NULL && bf->free == TRUE) {
@@ -517,7 +517,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_SET_STRETCH_MODE:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		bf->stretch_mode = (BOOL)lParam;
@@ -540,7 +540,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_SET_STRETCH_BITMAP:
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL || bf->stretch_mode == FALSE) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL || bf->stretch_mode == FALSE) {
 			break;
 		}
 		GetClientRect(hWnd, &window_rect);
@@ -563,7 +563,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	case WM_SET_SCROLLBAR:
 		// スクロールバー設定
-		if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL || bf->hbmp == NULL) {
+		if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL || bf->hbmp == NULL) {
 			break;
 		}
 		if (GetObject(bf->hbmp, sizeof(BITMAP), &bmp) == 0) {
@@ -627,7 +627,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_ZOOM_IN:
-		if ((bf = (BUFFER*)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER*)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		if (bf->scale >= 100) {
@@ -651,7 +651,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_ZOOM_OUT:
-		if ((bf = (BUFFER*)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+		if ((bf = (BUFFER*)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 			break;
 		}
 		if (bf->scale > 100) {
@@ -679,7 +679,7 @@ static LRESULT CALLBACK bmpview_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 			HMENU hMenu;
 			POINT apos;
 
-			if ((bf = (BUFFER *)GetWindowLong(hWnd, GWL_USERDATA)) == NULL) {
+			if ((bf = (BUFFER *)GetWindowLongPtr(hWnd, GWLP_USERDATA)) == NULL) {
 				break;
 			}
 			// メニューの作成
