@@ -163,7 +163,7 @@ static BOOL action_execute(const HWND hWnd, const int type, const int id, const 
 static BOOL action_check(const int type);
 static BOOL clipboard_to_history(const HWND hWnd);
 static BOOL clipboard_filter_formats(DATA_INFO *item);
-static BOOL clipboard_contains_password_label(DATA_INFO *item);
+static BOOL clipboard_is_confidential(DATA_INFO *item);
 static BOOL clipboard_remove_handler_formats(DATA_INFO *item);
 static void clipboard_apply_unicode_handler(DATA_INFO *item);
 static void clipboard_apply_image_handler(DATA_INFO *item);
@@ -1026,7 +1026,7 @@ static BOOL clipboard_to_history(const HWND hWnd)
 		}
 		return TRUE;
 	}
-	if (option.config_skip_passwords != 0 && clipboard_contains_password_label(di) != FALSE) {
+	if (clipboard_is_confidential(di) != FALSE) {
 		CloseClipboard();
 		data_free(di);
 		return TRUE;
@@ -1129,44 +1129,15 @@ static BOOL clipboard_filter_formats(DATA_INFO *item)
 	return item->child != NULL && payload;
 }
 
-static BOOL clipboard_contains_password_label(DATA_INFO *item)
+static BOOL clipboard_is_confidential(DATA_INFO *item)
 {
 	DATA_INFO *format_item;
-	TCHAR *text;
-	TCHAR *bounded_text;
-	DWORD text_length;
-	BOOL sensitive = FALSE;
 
 	for (format_item = item->child; format_item != NULL; format_item = format_item->next) {
 		if (format_item->format_name != NULL &&
 			(!lstrcmpi(format_item->format_name, TEXT("ExcludeClipboardContentFromMonitorProcessing")) ||
 			 !lstrcmpi(format_item->format_name, TEXT("application/x-keepassxc-confidential")) ||
 			 !lstrcmpi(format_item->format_name, TEXT("Clipboard Viewer Ignore")))) return TRUE;
-		if (format_item->format != CF_UNICODETEXT || format_item->data == NULL ||
-			format_item->size < sizeof(TCHAR) || format_item->size > 1048576) {
-			continue;
-		}
-		text = (TCHAR *)GlobalLock(format_item->data);
-		if (text == NULL) {
-			continue;
-		}
-		text_length = format_item->size / sizeof(TCHAR);
-		bounded_text = (TCHAR *)mem_alloc(sizeof(TCHAR) * (text_length + 1));
-		if (bounded_text != NULL) {
-			CopyMemory(bounded_text, text, sizeof(TCHAR) * text_length);
-			bounded_text[text_length] = TEXT('\0');
-			sensitive = StrStrI(bounded_text, TEXT("password")) != NULL ||
-				StrStrI(bounded_text, TEXT("passwd")) != NULL ||
-				StrStrI(bounded_text, TEXT("secret")) != NULL ||
-				StrStrI(bounded_text, TEXT("token")) != NULL ||
-				StrStrI(bounded_text, TEXT("비밀번호")) != NULL ||
-				StrStrI(bounded_text, TEXT("암호")) != NULL;
-			mem_free(&bounded_text);
-		}
-		GlobalUnlock(format_item->data);
-		if (sensitive != FALSE) {
-			return TRUE;
-		}
 	}
 	return FALSE;
 }

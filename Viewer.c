@@ -71,6 +71,7 @@
 #define ID_CLIPMASTER_FIND 127
 #define ID_CLIPMASTER_FAVORITES 128
 #define ID_CLIPMASTER_PASTEPLUS 129
+#define ID_CLIPMASTER_SEARCH_LABEL 130
 #define ID_CLIPMASTER_FIELD 5100
 #define CLIPMASTER_SETTINGS_HEIGHT settings_height
 #define ERROR_TITLE						TEXT("CLCL - Error")
@@ -2392,23 +2393,22 @@ typedef struct {
 } CLIPMASTER_SETTING;
 
 static const CLIPMASTER_SETTING clipmaster_settings[] = {
-	{ TEXT("UI 화면 크기 X축 비율"), FIELD_OFFSET(OPTION_INFO, config_width_percent), 10, 100 },
+	{ TEXT("전체화면 대비 기본 화면 크기 X축 비율"), FIELD_OFFSET(OPTION_INFO, config_width_percent), 10, 100 },
 	{ TEXT("Y축 비율"), FIELD_OFFSET(OPTION_INFO, config_height_percent), 10, 100 },
 	{ TEXT("마지막 화면 설정 자동 적용"), FIELD_OFFSET(OPTION_INFO, config_remember_layout), 0, 0 },
 	{ TEXT("개수로 제한"), FIELD_OFFSET(OPTION_INFO, config_history_limit_enabled), 0, 0 },
 	{ TEXT("히스토리 최대 개수"), FIELD_OFFSET(OPTION_INFO, history_max), 1, 5000 },
 	{ TEXT("일수로 제한"), FIELD_OFFSET(OPTION_INFO, config_history_days_enabled), 0, 0 },
 	{ TEXT("히스토리 보존 일수"), FIELD_OFFSET(OPTION_INFO, config_history_days), 1, 365 },
-	{ TEXT("즐겨찾기 최대 개수 (10~50)"), FIELD_OFFSET(OPTION_INFO, config_favorite_max), 10, 50 },
+	{ TEXT("즐겨찾기 최대 개수 (10~100)"), FIELD_OFFSET(OPTION_INFO, config_favorite_max), 10, 100 },
 	{ TEXT("재부팅할 때마다 히스토리 삭제"), FIELD_OFFSET(OPTION_INFO, config_clear_history_boot), 0, 0 },
-	{ TEXT("비밀번호 감지 시 저장 안 함"), FIELD_OFFSET(OPTION_INFO, config_skip_passwords), 0, 0 },
 	{ TEXT("Text"), FIELD_OFFSET(OPTION_INFO, config_exclude_text), 0, 0 },
 	{ TEXT("RichText / HTML"), FIELD_OFFSET(OPTION_INFO, config_exclude_richtext), 0, 0 },
 	{ TEXT("Image"), FIELD_OFFSET(OPTION_INFO, config_exclude_image), 0, 0 },
 	{ TEXT("File"), FIELD_OFFSET(OPTION_INFO, config_exclude_file), 0, 0 },
 	{ TEXT("Audio"), FIELD_OFFSET(OPTION_INFO, config_exclude_audio), 0, 0 },
 	{ TEXT("Device"), FIELD_OFFSET(OPTION_INFO, config_exclude_device), 0, 0 },
-	{ TEXT("Unicode text 강제 적용"), FIELD_OFFSET(OPTION_INFO, config_force_unicode), 0, 0 },
+	{ TEXT("Ansi2Unicode text 강제 적용"), FIELD_OFFSET(OPTION_INFO, config_force_unicode), 0, 0 },
 	{ TEXT("Windows 시작 시 자동 실행"), FIELD_OFFSET(OPTION_INFO, config_start_with_windows), 0, 0 },
 	{ TEXT("히스토리 저장 시 암호화 (DPAPI)"), FIELD_OFFSET(OPTION_INFO, config_encrypt_history), 0, 0 },
 	{ TEXT("프로그램 전환 시 트레이로 감춤"), FIELD_OFFSET(OPTION_INFO, config_hide_tray_on_switch), 0, 0 }
@@ -2432,11 +2432,10 @@ static void viewer_settings_layout(HWND panel)
 	right = wide ? left + column_width + 16 : left;
 #define SETTINGS_PLACE(id, x, y, w, h) MoveWindow(GetDlgItem(panel, (id)), MulDiv((x), dpi, 96), MulDiv((y), dpi, 96) - offset, max(1, MulDiv((w), dpi, 96)), max(1, MulDiv((h), dpi, 96)), TRUE)
 #define SETTINGS_NUMBER(id, x, y, w) SETTINGS_PLACE(6200 + (id), (x), (y) + 3, (w) - 104, 24); SETTINGS_PLACE(ID_CLIPMASTER_FIELD + (id), (x) + (w) - 96, (y), 68, 24); SETTINGS_PLACE(6300 + (id), (x) + (w) - 24, (y) + 3, 24, 24)
-	SETTINGS_PLACE(6000, left, 12, column_width, 144);
+	SETTINGS_PLACE(6000, left, 12, column_width, 116);
 	SETTINGS_NUMBER(0, left + 12, 38, column_width - 24);
 	SETTINGS_NUMBER(1, left + 12, 66, column_width - 24);
 	SETTINGS_PLACE(5102, left + 12, 94, column_width - 24, 24);
-	for (index = 0; index < 3; index++) SETTINGS_PLACE(5420 + index, left + 12 + index * ((column_width - 24) / 3), 122, (column_width - 24) / 3, 24);
 	SETTINGS_PLACE(6001, left, 168, column_width, 284);
 	SETTINGS_PLACE(5103, left + 12, 194, column_width - 128, 24);
 	SETTINGS_PLACE(5104, left + column_width - 108, 194, 68, 24);
@@ -2450,7 +2449,6 @@ static void viewer_settings_layout(HWND panel)
 	SETTINGS_PLACE(5410, left + 12, 332, column_width - 24, 24);
 	SETTINGS_PLACE(5412, left + 12, 356, column_width - 24, 24);
 	SETTINGS_PLACE(5411, left + 12, 380, column_width - 24, 24);
-	SETTINGS_PLACE(5109, left + 12, 416, column_width - 24, 24);
 	SETTINGS_PLACE(6002, left, 464, column_width, 184);
 	for (index = 0; index < 4; index++) {
 		SETTINGS_PLACE(6400 + index, left + 12, 490 + index * 28, 112, 24);
@@ -2460,21 +2458,22 @@ static void viewer_settings_layout(HWND panel)
 	SETTINGS_PLACE(5430, left + column_width - 108, 602, 68, 24);
 	SETTINGS_PLACE(6431, left + column_width - 36, 605, 24, 24);
 	top = wide ? 12 : 660;
-	SETTINGS_PLACE(6003, right, top, column_width, 144);
-	for (index = 10; index <= 16; index++) {
+	SETTINGS_PLACE(6003, right, top, column_width, 116);
+	for (index = 10; index <= 15; index++) {
 		row = (index - 10) / 2;
 		column = (index - 10) % 2;
 		SETTINGS_PLACE(5100 + index, right + 12 + column * ((column_width - 24) / 2), top + 26 + row * 28,
-			index == 16 ? column_width - 24 : (column_width - 24) / 2, 24);
+			(column_width - 24) / 2, 24);
 	}
-	top += 156;
-	SETTINGS_PLACE(6004, right, top, column_width, 132);
+	top += 128;
+	SETTINGS_PLACE(6004, right, top, column_width, 164);
+	SETTINGS_PLACE(5116, right + 12, top + 26, column_width - 24, 24);
 	for (index = 0; index < 3; index++) {
 		int label_width = min(164, (column_width - 24) / 2);
-		SETTINGS_PLACE(6440 + index, right + 12, top + 28 + index * 30, label_width, 24);
-		SETTINGS_PLACE(5440 + index, right + 20 + label_width, top + 24 + index * 30, column_width - label_width - 32, 24);
+		SETTINGS_PLACE(6440 + index, right + 12, top + 58 + index * 30, label_width, 24);
+		SETTINGS_PLACE(5440 + index, right + 20 + label_width, top + 54 + index * 30, column_width - label_width - 32, 24);
 	}
-	top += 144;
+	top += 176;
 	SETTINGS_PLACE(6005, right, top, column_width, 132);
 	for (index = 17; index < 20; index++) SETTINGS_PLACE(ID_CLIPMASTER_FIELD + index, right + 12, top + 26 + (index - 17) * 30, column_width - 24, 24);
 	top = max(648, top + 132) + 12;
@@ -2626,7 +2625,8 @@ static void viewer_create_settings(const HWND hWnd)
 	for (index = 0; index < ARRAYSIZE(groups); index++)
 		viewer_setting_control(panel, TEXT("BUTTON"), groups[index], BS_GROUPBOX, 6000 + index, 0, 0, 1, 1);
 	for (index = 0; index < ARRAYSIZE(clipmaster_settings); index++) {
-		if (index == 17) {
+		int field = index < 9 ? index : index + 1;
+		if (field == 17) {
 			int row, column;
 			top += 76;
 			settings_handler_top = top;
@@ -2654,8 +2654,8 @@ static void viewer_create_settings(const HWND hWnd)
 		value = *(int *)((BYTE *)&option + setting->offset);
 		if (setting->maximum == 0) {
 			viewer_setting_control(panel, TEXT("BUTTON"), setting->title, BS_AUTOCHECKBOX | WS_TABSTOP,
-				ID_CLIPMASTER_FIELD + index, 16, top, 288, 24);
-			CheckDlgButton(panel, ID_CLIPMASTER_FIELD + index, value ? BST_CHECKED : BST_UNCHECKED);
+				ID_CLIPMASTER_FIELD + field, 16, top, 288, 24);
+			CheckDlgButton(panel, ID_CLIPMASTER_FIELD + field, value ? BST_CHECKED : BST_UNCHECKED);
 		} else {
 			if (index == 0 || index == 1 || index == 7)
 				viewer_setting_control(panel, TEXT("STATIC"), setting->title, 0, 6200 + index, 16, top + 3, 208, 24);
@@ -2666,7 +2666,7 @@ static void viewer_create_settings(const HWND hWnd)
 				0, 6300 + index, 0, 0, 1, 1);
 		}
 		top += 34;
-		if (index == 9) {
+		if (field == 8) {
 			const TCHAR *hotkey_names[] = { TEXT("ClipManager"), TEXT("FavoriteClips"), TEXT("Paste"), TEXT("PastePlus") };
 			const TCHAR *hotkeys[] = { option.config_hotkey_clipmanager, option.config_hotkey_favorites,
 				option.config_hotkey_paste, option.config_hotkey_pasteplus };
@@ -2692,17 +2692,13 @@ static void viewer_create_settings(const HWND hWnd)
 		}
 	}
 	{
-		const TCHAR *alignment[] = { TEXT("왼쪽"), TEXT("중앙"), TEXT("오른쪽") };
 		const TCHAR *names[] = { TEXT("특수 서식 제외"), TEXT("Unicode text 변환"), TEXT("이미지 서식 선택") };
 		const TCHAR *values[] = { option.config_handler_special, option.config_handler_unicode, option.config_handler_image };
 		for (index = 0; index < 3; index++) {
-			viewer_setting_control(panel, TEXT("BUTTON"), alignment[index], BS_AUTORADIOBUTTON | WS_TABSTOP | (index == 0 ? WS_GROUP : 0),
-				5420 + index, 0, 0, 1, 1);
 			viewer_setting_control(panel, TEXT("STATIC"), names[index], 0, 6440 + index, 0, 0, 1, 1);
 			HWND edit = viewer_setting_control(panel, TEXT("EDIT"), values[index], ES_AUTOHSCROLL | WS_TABSTOP, 5440 + index, 0, 0, 1, 1);
 			SendMessage(edit, EM_SETLIMITTEXT, 255, 0);
 		}
-		CheckRadioButton(panel, 5420, 5422, 5420 + min(2, max(0, option.config_alignment)));
 	}
 	viewer_setting_control(panel, TEXT("STATIC"), TEXT("연속 실행 간격"), 0, 6430, 0, 0, 1, 1);
 	viewer_setting_control(panel, TEXT("EDIT"), TEXT(""), ES_NUMBER | ES_RIGHT | WS_TABSTOP, 5430, 0, 0, 1, 1);
@@ -2732,10 +2728,11 @@ static BOOL viewer_save_settings(const HWND hWnd)
 	BOOL valid;
 	TCHAR error[256];
 	for (index = 0; index < ARRAYSIZE(clipmaster_settings); index++) {
+		int field = index < 9 ? index : index + 1;
 		setting = &clipmaster_settings[index];
 		if (setting->maximum == 0) {
 			*(int *)((BYTE *)&candidate + setting->offset) =
-				IsDlgButtonChecked(panel, ID_CLIPMASTER_FIELD + index) == BST_CHECKED;
+				IsDlgButtonChecked(panel, ID_CLIPMASTER_FIELD + field) == BST_CHECKED;
 			continue;
 		}
 		valid = FALSE;
@@ -2783,8 +2780,6 @@ static BOOL viewer_save_settings(const HWND hWnd)
 	}
 	candidate.config_duplicate_policy = IsDlgButtonChecked(panel, 5411) == BST_CHECKED ? 2 :
 		IsDlgButtonChecked(panel, 5412) == BST_CHECKED ? 1 : 0;
-	candidate.config_alignment = IsDlgButtonChecked(panel, 5420) == BST_CHECKED ? 0 :
-		IsDlgButtonChecked(panel, 5422) == BST_CHECKED ? 2 : 1;
 	value = GetDlgItemInt(panel, 5430, &valid, FALSE);
 	if (!valid || value > 60000) {
 		SetDlgItemText(panel, ID_CLIPMASTER_STATUS, TEXT("연속 실행 간격은 0~60000ms 범위로 입력해 주세요."));
@@ -2915,6 +2910,7 @@ static void viewer_select_tab(const HWND hWnd, int index)
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_FAVORITES), index == 1 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_TILES), index == 0 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH), index == 0 ? SW_SHOW : SW_HIDE);
+	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH_LABEL), index == 0 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_FIND), index == 0 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_PANEL), index == 3 ? SW_SHOW : SW_HIDE);
 	if (index != 3) {
@@ -2934,6 +2930,41 @@ static void viewer_select_tab(const HWND hWnd, int index)
 	viewer_set_controls(hWnd);
 }
 
+static void viewer_draw_tab(const DRAWITEMSTRUCT *draw)
+{
+	const COLORREF colors[] = { RGB(219, 235, 252), RGB(219, 242, 226), RGB(255, 234, 210), RGB(250, 222, 230) };
+	const COLORREF accents[] = { RGB(42, 105, 176), RGB(38, 128, 76), RGB(183, 105, 28), RGB(170, 66, 98) };
+	RECT bounds = draw->rcItem, marker = bounds;
+	TCHAR text[64];
+	TCITEM item;
+	HBRUSH brush;
+	int saved = SaveDC(draw->hDC);
+	BOOL selected = TabCtrl_GetCurSel(draw->hwndItem) == (int)draw->itemID;
+	ZeroMemory(&item, sizeof(item));
+	item.mask = TCIF_TEXT;
+	item.pszText = text;
+	item.cchTextMax = ARRAYSIZE(text);
+	text[0] = TEXT('\0');
+	TabCtrl_GetItem(draw->hwndItem, draw->itemID, &item);
+	brush = CreateSolidBrush(colors[draw->itemID]);
+	FillRect(draw->hDC, &bounds, brush);
+	DeleteObject(brush);
+	marker.top = marker.bottom - max(1, MulDiv(selected ? 3 : 1, GetDpiForWindow(draw->hwndItem), 96));
+	brush = CreateSolidBrush(accents[draw->itemID]);
+	FillRect(draw->hDC, &marker, brush);
+	DeleteObject(brush);
+	bounds.bottom = marker.top;
+	SelectObject(draw->hDC, (HFONT)SendMessage(draw->hwndItem, WM_GETFONT, 0, 0));
+	SetBkMode(draw->hDC, TRANSPARENT);
+	SetTextColor(draw->hDC, selected ? accents[draw->itemID] : RGB(40, 40, 40));
+	DrawText(draw->hDC, text, -1, &bounds, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+	if (selected && GetFocus() == draw->hwndItem) {
+		InflateRect(&bounds, -3, -3);
+		DrawFocusRect(draw->hDC, &bounds);
+	}
+	RestoreDC(draw->hDC, saved);
+}
+
 static BOOL viewer_initialize(const HWND hWnd)
 {
 #define CF_CNT				1
@@ -2948,7 +2979,7 @@ static BOOL viewer_initialize(const HWND hWnd)
 	UINT cf[CF_CNT];
 	int i;
 
-	tabs = CreateWindowEx(0, WC_TABCONTROL, TEXT(""), WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_CLIPSIBLINGS,
+	tabs = CreateWindowEx(0, WC_TABCONTROL, TEXT(""), WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_CLIPSIBLINGS | TCS_OWNERDRAWFIXED,
 		0, 0, 0, 0, hWnd, (HMENU)ID_CLIPMASTER_TABS, hInst, NULL);
 	SendMessage(tabs, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
 	ZeroMemory(&tab_item, sizeof(tab_item));
@@ -2962,6 +2993,8 @@ static BOOL viewer_initialize(const HWND hWnd)
 	tileview_create(hInst, hWnd, ID_CLIPMASTER_FAVORITES);
 	tileview_favorites(GetDlgItem(hWnd, ID_CLIPMASTER_FAVORITES), TRUE);
 	pasteplus_create(hInst, hWnd, ID_CLIPMASTER_PASTEPLUS);
+	viewer_setting_control(hWnd, TEXT("STATIC"), TEXT("clip search"), SS_LEFT | SS_CENTERIMAGE,
+		ID_CLIPMASTER_SEARCH_LABEL, 0, 0, 1, 1);
 	viewer_setting_control(hWnd, TEXT("EDIT"), TEXT(""), ES_AUTOHSCROLL | WS_TABSTOP,
 		ID_CLIPMASTER_SEARCH, 0, 0, 1, 1);
 	SendDlgItemMessage(hWnd, ID_CLIPMASTER_SEARCH, EM_SETLIMITTEXT, 255, 0);
@@ -3105,8 +3138,10 @@ static void viewer_set_controls(const HWND hWnd)
 		window_rect.right, max(0, (int)(window_rect.bottom - statusbar_size - toolbar_size)), TRUE);
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_PASTEPLUS), 0, toolbar_size,
 		window_rect.right, max(0, (int)(window_rect.bottom - statusbar_size - toolbar_size)), TRUE);
-	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH), Scale(12), toolbar_size + Scale(8),
-		max(1, window_rect.right - Scale(64)), Scale(28), TRUE);
+	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH_LABEL), Scale(12), toolbar_size + Scale(8),
+		Scale(76), Scale(28), TRUE);
+	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH), Scale(96), toolbar_size + Scale(8),
+		max(1, window_rect.right - Scale(148)), Scale(28), TRUE);
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_FIND), max(0, window_rect.right - Scale(44)),
 		toolbar_size + Scale(8), Scale(32), Scale(28), TRUE);
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_TILES), 0, toolbar_size + Scale(44),
@@ -3241,6 +3276,12 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 	int ret;
 
 	switch (msg) {
+	case WM_DRAWITEM:
+		if (wParam == ID_CLIPMASTER_TABS && ((DRAWITEMSTRUCT *)lParam)->itemID < 4) {
+			viewer_draw_tab((DRAWITEMSTRUCT *)lParam);
+			return TRUE;
+		}
+		break;
 	case WM_CREATE:
 		// ウィンドウ作成
 		viewer_initialize(hWnd);
@@ -3547,8 +3588,10 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 					MessageBox(hWnd, TEXT("The favorites limit has been reached."), WINDOW_TITLE, MB_OK | MB_ICONINFORMATION);
 				} else if (regist_treeitem != NULL && MessageBox(hWnd, TEXT("Add this clip to favorites?"),
 					WINDOW_TITLE, MB_OKCANCEL | MB_ICONQUESTION) == IDOK) {
-					if (viewer_item_copy(hWnd, item, regist_treeitem, FALSE, error) != NULL) {
-						SendMessage(main_wnd, WM_REGIST_SAVE, 0, 0);
+					favorite = data_item_copy((DATA_INFO *)lParam, FALSE, FALSE, error);
+					if (favorite != NULL) {
+						mem_free(&favorite->window_name);
+						viewer_commit_favorite(hWnd, NULL, favorite);
 					} else if (*error) {
 						MessageBox(hWnd, error, ERROR_TITLE, MB_OK | MB_ICONERROR);
 					}
@@ -3589,6 +3632,10 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			break;
 		case ID_CLIPMASTER_FIND:
 			SendMessage(hWnd, WM_TILE_SEARCH, 0, 0);
+			break;
+		case ID_CLIPMASTER_SEARCH:
+			if (HIWORD(wParam) == EN_CHANGE && GetWindowTextLength(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH)) == 0)
+				tileview_search(GetDlgItem(hWnd, ID_CLIPMASTER_TILES), TEXT(""));
 			break;
 		case ID_CLIPMASTER_SAVE:
 			if (viewer_save_settings(hWnd)) {
@@ -4409,13 +4456,8 @@ HWND viewer_create(const HWND pWnd, const int CmdShow)
 		work_area.right - work_area.left);
 	height = min(max(MulDiv(work_area.bottom - work_area.top, option.config_height_percent, 100), Scale(240)),
 		work_area.bottom - work_area.top);
-	left = work_area.left;
+	left = work_area.left + (work_area.right - work_area.left - width) / 2;
 	top = work_area.top + (work_area.bottom - work_area.top - height) / 2;
-	if (option.config_alignment == 1) {
-		left += (work_area.right - work_area.left - width) / 2;
-	} else if (option.config_alignment == 2) {
-		left += work_area.right - work_area.left - width;
-	}
 	if (option.config_remember_layout && option.config_saved_geometry) {
 		width = min(max(Scale(option.viewer_rect.right), Scale(340)), work_area.right - work_area.left);
 		height = min(max(Scale(option.viewer_rect.bottom), Scale(240)), work_area.bottom - work_area.top);

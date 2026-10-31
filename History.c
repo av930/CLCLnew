@@ -190,7 +190,6 @@ BOOL history_add(DATA_INFO **root, DATA_INFO *new_item, const BOOL overlap_check
 		*root = new_item;
 	}
 
-	history_trim(root);
 	return TRUE;
 }
 /* End of source */

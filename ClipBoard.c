@@ -98,6 +98,7 @@ UINT clipboard_get_format(const UINT format, TCHAR *type_name)
 		CF_ENHMETAFILE,		TEXT("ENHANCED METAFILE"),
 		CF_HDROP,			TEXT("DROP FILE LIST"),
 		CF_LOCALE,			TEXT("LOCALE"),
+		CF_DIBV5,			TEXT("DIB V5"),
 		CF_MAX,				TEXT("MAX"),
 		CF_OWNERDISPLAY,	TEXT("OWNER DISPLAY"),
 		CF_DSPTEXT,			TEXT("PRIVATE TEXT"),
@@ -223,8 +224,13 @@ static BOOL clipboard_set_data(const UINT format, const TCHAR *name, const HANDL
 		return FALSE;
 	}
 	// クリップボードにデータを設定
+	SetLastError(ERROR_SUCCESS);
 	if (SetClipboardData(fmt, data) == NULL && data != NULL) {
-		message_get_error(GetLastError(), err_str);
+		DWORD error = GetLastError();
+		TCHAR detail[BUF_SIZE];
+		message_get_error(error != ERROR_SUCCESS ? error : ERROR_INVALID_DATA, detail);
+		detail[BUF_SIZE - 80] = TEXT('\0');
+		if (err_str != NULL) wsprintf(err_str, TEXT("Could not set clipboard format %u: %s"), fmt, detail);
 		return FALSE;
 	}
 	return TRUE;
@@ -254,6 +260,7 @@ BOOL clipboard_set_datainfo(const HWND hWnd, DATA_INFO *set_di, TCHAR *err_str)
 	case TYPE_ITEM:
 		// 子アイテムを全て追加
 		for (di = set_di->child; di != NULL; di = di->next) {
+			if (di->format == 0 && (di->format_name == NULL || di->format_name[0] == TEXT('\0'))) continue;
 			if (clipboard_set_data(di->format, di->format_name, di->data, err_str) == FALSE) {
 				CloseClipboard();
 				return FALSE;

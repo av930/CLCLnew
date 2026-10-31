@@ -196,11 +196,10 @@ BOOL ini_get_option(TCHAR *err_str)
 	option.config_history_days_enabled = profile_get_int(TEXT("config"), TEXT("history_days_enabled"), 1, ini_path);
 	if (!option.config_history_limit_enabled && !option.config_history_days_enabled) option.config_history_days_enabled = 1;
 	option.config_history_days = min(365, max(1, profile_get_int(TEXT("config"), TEXT("history_days"), 3, ini_path)));
-	option.config_favorite_max = min(50, max(10, profile_get_int(TEXT("config"), TEXT("favorite_max"), 20, ini_path)));
+	option.config_favorite_max = min(100, max(10, profile_get_int(TEXT("config"), TEXT("favorite_max"), 50, ini_path)));
 	option.config_clear_clipboard_startup = profile_get_int(TEXT("config"), TEXT("clear_clipboard_startup"), 0, ini_path);
 	option.config_duplicate_policy = profile_get_int(TEXT("config"), TEXT("duplicate_policy"), 2, ini_path);
 	if (option.config_duplicate_policy < 0 || option.config_duplicate_policy > 2) option.config_duplicate_policy = 2;
-	option.config_skip_passwords = profile_get_int(TEXT("config"), TEXT("skip_passwords"), 1, ini_path);
 	profile_get_string(TEXT("config"), TEXT("hotkey_clipmanager"), TEXT("Alt+SPACE"),
 		option.config_hotkey_clipmanager, sizeof(option.config_hotkey_clipmanager) / sizeof(TCHAR), ini_path);
 	if (lstrcmpi(option.config_hotkey_clipmanager, TEXT("Alt+ENTER")) == 0)
@@ -868,7 +867,6 @@ BOOL ini_put_option(void)
 	profile_write_int(TEXT("config"), TEXT("favorite_max"), option.config_favorite_max, ini_path);
 	profile_write_int(TEXT("config"), TEXT("clear_clipboard_startup"), option.config_clear_clipboard_startup, ini_path);
 	profile_write_int(TEXT("config"), TEXT("duplicate_policy"), option.config_duplicate_policy, ini_path);
-	profile_write_int(TEXT("config"), TEXT("skip_passwords"), option.config_skip_passwords, ini_path);
 	profile_write_string(TEXT("config"), TEXT("hotkey_clipmanager"), option.config_hotkey_clipmanager, ini_path);
 	profile_write_string(TEXT("config"), TEXT("hotkey_pasteplus"), option.config_hotkey_pasteplus, ini_path);
 	profile_write_string(TEXT("config"), TEXT("hotkey_favorites"), option.config_hotkey_favorites, ini_path);

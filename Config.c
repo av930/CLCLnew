@@ -27,11 +27,10 @@ void cm_config_defaults(OPTION_INFO *settings)
     settings->history_max = 300;
     settings->history_save = 1;
     settings->history_always_save = 1;
-    settings->config_favorite_max = 20;
+    settings->config_favorite_max = 50;
     settings->config_clear_history_boot = 0;
     settings->config_clear_clipboard_startup = 0;
     settings->config_duplicate_policy = 2;
-    settings->config_skip_passwords = 1;
     lstrcpy(settings->config_hotkey_clipmanager, TEXT("Alt+SPACE"));
     lstrcpy(settings->config_hotkey_favorites, TEXT("CapsLock+F"));
     lstrcpy(settings->config_hotkey_pasteplus, TEXT("CapsLock+V"));

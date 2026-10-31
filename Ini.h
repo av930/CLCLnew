@@ -260,7 +260,6 @@ typedef struct _OPTION_INFO {
 	int config_favorite_max;
 	int config_clear_clipboard_startup;
 	int config_duplicate_policy;
-	int config_skip_passwords;
 	TCHAR config_hotkey_clipmanager[64];
 	TCHAR config_hotkey_pasteplus[64];
 	TCHAR config_hotkey_favorites[64];

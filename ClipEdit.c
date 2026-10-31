@@ -39,6 +39,22 @@ static BOOL editor_has_image(void)
         IsClipboardFormatAvailable(RegisterClipboardFormat(TEXT("image/jpeg")));
 }
 
+static void editor_preview(HWND window, CLIP_EDITOR *editor)
+{
+    TCHAR metadata[32];
+    int selected = (int)SendDlgItemMessage(window, 303, CB_GETCURSEL, 0, 0);
+    int kind = selected >= 0 && selected < 5 ? selected + 1 : 0;
+    EnableWindow(GetDlgItem(window, 301), kind != 4 && kind != 5);
+    EnableWindow(GetDlgItem(window, 308), kind != 4 && kind != 5);
+    if (editor->working->plugin_string == NULL ||
+        _tcsncmp(editor->working->plugin_string, TEXT("ClipMaster:tile:"), 16) == 0) {
+        wsprintf(metadata, TEXT("ClipMaster:tile:%d"), kind);
+        mem_free(&editor->working->plugin_string);
+        editor->working->plugin_string = alloc_copy(metadata);
+    }
+    if (editor->image) tileview_refresh(GetDlgItem(window, 307), editor->working);
+}
+
 static void editor_image(HWND window, CLIP_EDITOR *editor)
 {
     DATA_INFO *item;
@@ -53,7 +69,7 @@ static void editor_image(HWND window, CLIP_EDITOR *editor)
     editor->changed = FALSE;
     ShowWindow(GetDlgItem(window, 301), SW_HIDE);
     ShowWindow(GetDlgItem(window, 307), SW_SHOW);
-    tileview_refresh(GetDlgItem(window, 307), item);
+    editor_preview(window, editor);
 }
 
 static LRESULT CALLBACK editor_text_proc(HWND window, UINT message, WPARAM parameter, LPARAM data,
@@ -96,11 +112,17 @@ static LRESULT CALLBACK editor_proc(HWND window, UINT message, WPARAM parameter,
         return 0;
     case WM_COMMAND:
         if (LOWORD(parameter) == 301 && HIWORD(parameter) == EN_CHANGE) editor->changed = TRUE;
+        if (LOWORD(parameter) == 303 && HIWORD(parameter) == CBN_SELCHANGE) editor_preview(window, editor);
         if (LOWORD(parameter) == 302) {
             if (editor_has_image()) editor_image(window, editor);
             else SetDlgItemText(window, 304, TEXT("The clipboard does not contain an image."));
         }
         if (LOWORD(parameter) == 308) {
+            int kind = (int)SendDlgItemMessage(window, 303, CB_GETCURSEL, 0, 0) + 1;
+            if (kind == 4 || kind == 5) {
+                SetDlgItemText(window, 304, TEXT("This panel accepts images only."));
+                return 0;
+            }
             editor->image = FALSE;
             editor->changed = TRUE;
             ShowWindow(GetDlgItem(window, 307), SW_HIDE);
@@ -108,6 +130,16 @@ static LRESULT CALLBACK editor_proc(HWND window, UINT message, WPARAM parameter,
             SetFocus(GetDlgItem(window, 301));
         }
         if (LOWORD(parameter) == IDOK) {
+            int selected_kind = (int)SendDlgItemMessage(window, 303, CB_GETCURSEL, 0, 0) + 1;
+            if (selected_kind == 6) selected_kind = 0;
+            if (selected_kind == 4 && (!editor->image || !tileview_has_image(window, editor->working))) {
+                SetDlgItemText(window, 304, TEXT("The large panel accepts images only."));
+                return 0;
+            }
+            if (selected_kind == 5 && (!editor->image || !tileview_portrait_image(window, editor->working))) {
+                SetDlgItemText(window, 304, TEXT("The portrait panel requires an image taller than it is wide."));
+                return 0;
+            }
             if (!editor->image) {
                 int length = GetWindowTextLength(GetDlgItem(window, 301));
                 TCHAR *current = mem_alloc((length + 1) * sizeof(TCHAR));
@@ -137,16 +169,7 @@ static LRESULT CALLBACK editor_proc(HWND window, UINT message, WPARAM parameter,
                 editor->working->child = format;
                 mem_free(&editor->working->title);
             }
-            {
-                TCHAR metadata[32];
-                int kind = (int)SendDlgItemMessage(window, 303, CB_GETCURSEL, 0, 0) + 1;
-                wsprintf(metadata, TEXT("ClipMaster:tile:%d"), kind);
-                if (editor->working->plugin_string == NULL ||
-                    _tcsncmp(editor->working->plugin_string, TEXT("ClipMaster:tile:"), 16) == 0) {
-                    mem_free(&editor->working->plugin_string);
-                    editor->working->plugin_string = alloc_copy(metadata);
-                }
-            }
+            editor_preview(window, editor);
             data_set_modified(editor->working);
             editor->accepted = TRUE;
             DestroyWindow(window);
@@ -172,7 +195,7 @@ DATA_INFO *clipedit_show(HINSTANCE instance, HWND owner, DATA_INFO *original, in
     HWND window, text;
     DATA_INFO *format;
     MSG message;
-    const TCHAR *sizes[] = { TEXT("96 x 96"), TEXT("192 x 96"), TEXT("384 x 96"), TEXT("192 x 192") };
+    const TCHAR *sizes[] = { TEXT("192 x 48"), TEXT("192 x 96"), TEXT("384 x 96"), TEXT("192 x 192"), TEXT("96 x 192"), TEXT("Automatic") };
     int index;
     ZeroMemory(&editor, sizeof(editor));
     editor.working = original ? data_item_copy(original, FALSE, FALSE, NULL) : data_create_item(NULL, TRUE, NULL);
@@ -199,8 +222,8 @@ DATA_INFO *clipedit_show(HINSTANCE instance, HWND owner, DATA_INFO *original, in
     editor_control(window, TEXT("BUTTON"), TEXT("Save"), BS_DEFPUSHBUTTON | WS_TABSTOP, IDOK);
     editor_control(window, TEXT("BUTTON"), TEXT("Cancel"), BS_PUSHBUTTON | WS_TABSTOP, IDCANCEL);
     tileview_create(instance, window, 307);
-    for (index = 0; index < 4; index++) SendDlgItemMessage(window, 303, CB_ADDSTRING, 0, (LPARAM)sizes[index]);
-    SendDlgItemMessage(window, 303, CB_SETCURSEL, kind >= 1 && kind <= 4 ? kind - 1 : 0, 0);
+    for (index = 0; index < ARRAYSIZE(sizes); index++) SendDlgItemMessage(window, 303, CB_ADDSTRING, 0, (LPARAM)sizes[index]);
+    SendDlgItemMessage(window, 303, CB_SETCURSEL, kind >= 1 && kind <= 5 ? kind - 1 : 5, 0);
     editor.image = original != NULL;
     for (format = editor.working->child; format != NULL; format = format->next) {
         if (format->format == CF_UNICODETEXT) {
@@ -218,7 +241,7 @@ DATA_INFO *clipedit_show(HINSTANCE instance, HWND owner, DATA_INFO *original, in
     }
     ShowWindow(text, editor.image ? SW_HIDE : SW_SHOW);
     ShowWindow(GetDlgItem(window, 307), editor.image ? SW_SHOW : SW_HIDE);
-    if (editor.image) tileview_refresh(GetDlgItem(window, 307), editor.working);
+    editor_preview(window, &editor);
     dark_mode_set_window(window);
     EnableWindow(owner, FALSE);
     ShowWindow(window, SW_SHOW);
