@@ -1,0 +1,7 @@
+#ifndef _INC_CLCLSET_RESOURCE_H
+#define _INC_CLCLSET_RESOURCE_H
+
+#define IDI_ICON_MAIN 105
+#define IDI_ICON_REGIST 107
+
+#endif

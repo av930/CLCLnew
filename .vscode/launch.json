@@ -1,0 +1,28 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CLCL (Release x86)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/Release/CLCL.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal",
+            "logging": {
+                "moduleLoad": false
+            },
+            "preLaunchTask": "Build CLCL (Release x86)"
+        },
+        {
+            "name": "Build & Run CLCL (Release x86)",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "echo Build n Run 완료",
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build & Run CLCL (Release x86)"
+        }
+    ]
+}
