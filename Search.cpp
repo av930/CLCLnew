@@ -48,17 +48,32 @@ extern "C" BOOL search_text_match(const TCHAR *text, const TCHAR *pattern, SEARC
 	std::wstring input(text);
 	std::wstring query(pattern);
 	std::vector<std::pair<int, int>> found;
+	static thread_local std::wstring cached_query;
+	static thread_local std::wregex cached_regex;
+	static thread_local bool cached_valid = false;
+	if (query != cached_query) {
+		cached_valid = false;
+		try {
+			cached_regex = std::wregex(query, std::regex_constants::icase);
+			cached_valid = true;
+		} catch (const std::regex_error &) {
+		}
+		cached_query = query;
+	}
 
 	try {
-		std::wregex re(query, std::regex_constants::icase);
-		auto begin = std::wsregex_iterator(input.begin(), input.end(), re);
-		auto end = std::wsregex_iterator();
+		if (!cached_valid) {
+			search_plain_match(input, query, found);
+		} else {
+			auto begin = std::wsregex_iterator(input.begin(), input.end(), cached_regex);
+			auto end = std::wsregex_iterator();
 
-		for (auto it = begin; it != end; ++it) {
-			if (it->length() == 0) {
-				continue;
+			for (auto it = begin; it != end; ++it) {
+				if (it->length() == 0) {
+					continue;
+				}
+				found.push_back(std::make_pair((int)it->position(), (int)it->length()));
 			}
-			found.push_back(std::make_pair((int)it->position(), (int)it->length()));
 		}
 	} catch (const std::regex_error &) {
 		// Invalid regex pattern: fall back to plain substring search

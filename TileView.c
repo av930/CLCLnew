@@ -572,8 +572,9 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
 {
     RECT client, bounds, text_bounds;
     HDC context = CreateCompatibleDC(target);
+    HDC source = NULL;
     HBITMAP buffer, old_bitmap;
-    HFONT old_font, category_font;
+    HFONT old_font, category_font, large = NULL, label_font = NULL;
     HBRUSH surface, search_surface, category_surfaces[2];
     HPEN pen, old_pen;
     int index, sequence;
@@ -598,7 +599,7 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
         TILE_ENTRY *entry = &view->entries[index];
         RECT badge;
         BOOL show_category = entry->item != NULL;
-        BOOL matched = view->keyword[0] != TEXT('\0') && StrStrI(entry->text, view->keyword) != NULL;
+        BOOL matched;
         bounds = entry->divider;
         OffsetRect(&bounds, 0, -view->offset);
         if (!IsRectEmpty(&entry->divider) && bounds.bottom >= 0 && bounds.top <= client.bottom) {
@@ -615,6 +616,7 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
         if (bounds.bottom < 0 || bounds.top > client.bottom) {
             continue;
         }
+        matched = view->keyword[0] != TEXT('\0') && StrStrI(entry->text, view->keyword) != NULL;
         FillRect(context, &bounds, matched ? search_surface : surface);
         FrameRect(context, &bounds, dark_mode_get_brush(index == view->selected ? COLOR_HIGHLIGHT : COLOR_3DSHADOW));
         text_bounds = bounds;
@@ -634,17 +636,17 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
         if (show_category && entry->image == NULL)
             ExcludeClipRect(context, badge.left - tile_scale(window, 2), badge.top, badge.right, badge.bottom);
         if (entry->item == NULL) {
-            HFONT large = CreateFont(-tile_scale(window, 28), 0, 0, 0, FW_NORMAL,
+            HFONT previous;
+            if (large == NULL) large = CreateFont(-tile_scale(window, 28), 0, 0, 0, FW_NORMAL,
                 FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                 CLEARTYPE_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
-            HFONT previous = SelectObject(context, large);
+            previous = SelectObject(context, large);
             SetTextColor(context, dark_mode_get_color(COLOR_WINDOWTEXT));
             DrawText(context, TEXT("+"), -1, &text_bounds, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             SelectObject(context, previous);
-            DeleteObject(large);
             if (entry->kind == 4 || entry->kind == 5) {
                 RECT label = text_bounds;
-                HFONT label_font = CreateFont(-tile_scale(window, 16), 0, 0, 0, FW_MEDIUM,
+                if (label_font == NULL) label_font = CreateFont(-tile_scale(window, 16), 0, 0, 0, FW_MEDIUM,
                     FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                     CLEARTYPE_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
                 previous = SelectObject(context, label_font);
@@ -652,15 +654,15 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
                 SetTextColor(context, RGB(128, 128, 128));
                 DrawText(context, TEXT("image only"), -1, &label, DT_CENTER | DT_WORDBREAK | DT_NOPREFIX);
                 SelectObject(context, previous);
-                DeleteObject(label_font);
             }
         } else if (entry->image != NULL) {
             BITMAP bitmap;
-            HDC source = CreateCompatibleDC(context);
-            HBITMAP old_image = SelectObject(source, entry->image);
+            HBITMAP old_image;
             int width = text_bounds.right - text_bounds.left;
             int height = text_bounds.bottom - text_bounds.top;
             int source_width, source_height;
+            if (source == NULL) source = CreateCompatibleDC(context);
+            old_image = SelectObject(source, entry->image);
             GetObject(entry->image, sizeof(bitmap), &bitmap);
             source_width = bitmap.bmWidth;
             source_height = bitmap.bmHeight;
@@ -675,7 +677,6 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
                 (bitmap.bmWidth - source_width) / 2, (bitmap.bmHeight - source_height) / 2,
                 source_width, source_height, SRCCOPY);
             SelectObject(source, old_image);
-            DeleteDC(source);
         } else {
             tile_draw_text(context, text_bounds, entry->text, view->keyword,
                 matched ? RGB(0, 0, 0) : dark_mode_get_color(COLOR_WINDOWTEXT));
@@ -707,6 +708,9 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
     DeleteObject(category_surfaces[0]);
     DeleteObject(category_surfaces[1]);
     DeleteObject(category_font);
+    if (large != NULL) DeleteObject(large);
+    if (label_font != NULL) DeleteObject(label_font);
+    if (source != NULL) DeleteDC(source);
     DeleteObject(buffer);
     DeleteDC(context);
 }

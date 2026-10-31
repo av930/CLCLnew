@@ -1,5 +1,23 @@
 # Refactoring Notes
 
+## Current Review (2026-11-01)
+
+- Compared tracked C/C++ sources and headers against all four current MSBuild projects. The only files outside those lists are the plugin SDK header, two development templates and the independently built `tool_test` sample (with its own DSP/DSW project). They are intentional development assets, not confirmed unused application code, and were retained.
+- Moved tile keyword matching after viewport culling. Off-screen tiles no longer scan their text on each paint.
+- Reused one image source DC and lazily created placeholder fonts per paint, instead of creating/deleting them for each visible image or placeholder. The existing double buffer, DPI scaling, tile structures and category rendering are unchanged.
+- Cached the last regex and its validity per thread. Repeated menu searches reuse compilation; invalid expressions still use case-insensitive literal matching. The cache retains only one query per thread.
+- Added `tests/SearchTests.cpp` for repeated searches, pattern changes, invalid patterns, empty/zero-length matches, null inputs and thread isolation. A 5,000-call microbenchmark measured about 29 ms with repeated regex compilation versus 26 ms with cached search on this machine; this is not an application-wide speedup estimate.
+
+Run the search regression from an x86 Visual Studio developer PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Path Debug\SearchTests -Force | Out-Null
+cl.exe /nologo /EHsc /O2 /MT /W3 /DUNICODE /D_UNICODE tests\SearchTests.cpp Search.cpp /FoDebug\SearchTests\ /FeDebug\SearchTests.exe
+& .\Debug\SearchTests.exe
+```
+
+Release x86 search regressions, isolated `-LayoutOnly` and `-CategoryOnly` smoke tests passed. Initial UI test attempts encountered a clipboard-write failure and a badge screen-capture failure; unchanged reruns passed. Full smoke, external pasting, custom handlers and third-party plugin integration were not revalidated in this review.
+
 ## Scope
 
 - Removed two unreferenced hotkey parsers from `main.c`. Active hotkeys still use `cm_hotkey_parse`.
