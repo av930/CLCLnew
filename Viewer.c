@@ -50,6 +50,7 @@
 #include "ViewerOLEDnD.h"
 #include "ViewerDnD.h"
 #include "TileView.h"
+#include "ClipSample.h"
 #include "SendKey.h"
 #include "ClipEdit.h"
 #include "PastePlus.h"
@@ -72,6 +73,7 @@
 #define ID_CLIPMASTER_FAVORITES 128
 #define ID_CLIPMASTER_PASTEPLUS 129
 #define ID_CLIPMASTER_SEARCH_LABEL 130
+#define ID_CLIPMASTER_SAMPLES 131
 #define ID_CLIPMASTER_FIELD 5100
 #define CLIPMASTER_SETTINGS_HEIGHT settings_height
 #define ERROR_TITLE						TEXT("CLCL - Error")
@@ -104,6 +106,7 @@ static HWND current_wnd;
 static HWND paste_target;
 static HWND paste_focus;
 static int settings_height = 1600;
+static DATA_INFO *sample_data;
 static int settings_handler_top;
 static int settings_handler_count;
 HMENU h_popup_menu;
@@ -2899,7 +2902,7 @@ static BOOL viewer_commit_favorite(HWND window, DATA_INFO *original, DATA_INFO *
 static void viewer_select_tab(const HWND hWnd, int index)
 {
 	HTREEITEM root;
-	if (index < 0 || index > 3) {
+	if (index < 0 || index > 4) {
 		return;
 	}
 	TabCtrl_SetCurSel(GetDlgItem(hWnd, ID_CLIPMASTER_TABS), index);
@@ -2908,12 +2911,19 @@ static void viewer_select_tab(const HWND hWnd, int index)
 	ShowWindow(GetDlgItem(hWnd, ID_CONTAINER), SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_PASTEPLUS), index == 2 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_FAVORITES), index == 1 ? SW_SHOW : SW_HIDE);
+	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SAMPLES), index == 3 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_TILES), index == 0 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH), index == 0 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH_LABEL), index == 0 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_FIND), index == 0 ? SW_SHOW : SW_HIDE);
-	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_PANEL), index == 3 ? SW_SHOW : SW_HIDE);
-	if (index != 3) {
+	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_PANEL), index == 4 ? SW_SHOW : SW_HIDE);
+	if (index == 3) {
+		if (sample_data == NULL) {
+			sample_data = clipsample_create();
+			tileview_refresh(GetDlgItem(hWnd, ID_CLIPMASTER_SAMPLES), sample_data);
+		}
+		SetFocus(GetDlgItem(hWnd, ID_CLIPMASTER_SAMPLES));
+	} else if (index != 4) {
 		root = index == 0 ? history_treeitem : index == 1 ? regist_treeitem : clip_treeitem;
 		TreeView_SelectItem(GetDlgItem(hWnd, ID_TREE), root);
 		if (index == 0) {
@@ -2932,8 +2942,8 @@ static void viewer_select_tab(const HWND hWnd, int index)
 
 static void viewer_draw_tab(const DRAWITEMSTRUCT *draw)
 {
-	const COLORREF colors[] = { RGB(219, 235, 252), RGB(219, 242, 226), RGB(255, 234, 210), RGB(250, 222, 230) };
-	const COLORREF accents[] = { RGB(42, 105, 176), RGB(38, 128, 76), RGB(183, 105, 28), RGB(170, 66, 98) };
+	const COLORREF colors[] = { RGB(219, 235, 252), RGB(219, 242, 226), RGB(255, 234, 210), RGB(230, 224, 248), RGB(250, 222, 230) };
+	const COLORREF accents[] = { RGB(42, 105, 176), RGB(38, 128, 76), RGB(183, 105, 28), RGB(102, 80, 168), RGB(170, 66, 98) };
 	RECT bounds = draw->rcItem, marker = bounds;
 	TCHAR text[64];
 	TCITEM item;
@@ -2972,7 +2982,7 @@ static BOOL viewer_initialize(const HWND hWnd)
 	HWND hTreeView;
 	HWND tabs;
 	TCITEM tab_item;
-	const TCHAR *tab_names[] = { TEXT("ClipManager"), TEXT("FavoriteClips"), TEXT("PastePlus"), TEXT("Setting") };
+	const TCHAR *tab_names[] = { TEXT("ClipManager"), TEXT("FavoriteClips"), TEXT("PastePlus"), TEXT("ClipSample"), TEXT("Setting") };
 	TCHAR buf[BUF_SIZE];
 	TCHAR *str_menu;
 	TCHAR *str_hkey;
@@ -2984,7 +2994,7 @@ static BOOL viewer_initialize(const HWND hWnd)
 	SendMessage(tabs, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
 	ZeroMemory(&tab_item, sizeof(tab_item));
 	tab_item.mask = TCIF_TEXT;
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < 5; i++) {
 		tab_item.pszText = (TCHAR *)tab_names[i];
 		TabCtrl_InsertItem(tabs, i, &tab_item);
 	}
@@ -2992,6 +3002,8 @@ static BOOL viewer_initialize(const HWND hWnd)
 	tileview_create(hInst, hWnd, ID_CLIPMASTER_TILES);
 	tileview_create(hInst, hWnd, ID_CLIPMASTER_FAVORITES);
 	tileview_favorites(GetDlgItem(hWnd, ID_CLIPMASTER_FAVORITES), TRUE);
+	tileview_create(hInst, hWnd, ID_CLIPMASTER_SAMPLES);
+	tileview_samples(GetDlgItem(hWnd, ID_CLIPMASTER_SAMPLES), TRUE);
 	pasteplus_create(hInst, hWnd, ID_CLIPMASTER_PASTEPLUS);
 	viewer_setting_control(hWnd, TEXT("STATIC"), TEXT("clip search"), SS_LEFT | SS_CENTERIMAGE,
 		ID_CLIPMASTER_SEARCH_LABEL, 0, 0, 1, 1);
@@ -3136,6 +3148,8 @@ static void viewer_set_controls(const HWND hWnd)
 		window_rect.right, max(0, (int)(window_rect.bottom - statusbar_size - toolbar_size)), TRUE);
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_FAVORITES), 0, toolbar_size,
 		window_rect.right, max(0, (int)(window_rect.bottom - statusbar_size - toolbar_size)), TRUE);
+	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SAMPLES), 0, toolbar_size,
+		window_rect.right, max(0, (int)(window_rect.bottom - statusbar_size - toolbar_size)), TRUE);
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_PASTEPLUS), 0, toolbar_size,
 		window_rect.right, max(0, (int)(window_rect.bottom - statusbar_size - toolbar_size)), TRUE);
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH_LABEL), Scale(12), toolbar_size + Scale(8),
@@ -3240,6 +3254,8 @@ static BOOL viewer_close(const HWND hWnd)
 	// データ解放
 	data_free(clip_di.child);
 	clip_di.child = NULL;
+	data_free(sample_data);
+	sample_data = NULL;
 
 	// リストビューのカラム幅取得
 	SetDpiFromWindow(hWnd);
@@ -3277,7 +3293,7 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 
 	switch (msg) {
 	case WM_DRAWITEM:
-		if (wParam == ID_CLIPMASTER_TABS && ((DRAWITEMSTRUCT *)lParam)->itemID < 4) {
+		if (wParam == ID_CLIPMASTER_TABS && ((DRAWITEMSTRUCT *)lParam)->itemID < 5) {
 			viewer_draw_tab((DRAWITEMSTRUCT *)lParam);
 			return TRUE;
 		}
@@ -3292,7 +3308,7 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 		FocusWnd = GetDlgItem(hWnd, ID_TREE);
 		SetFocus(FocusWnd);
 		viewer_select_tab(hWnd, option.config_remember_layout && option.config_last_tab >= 0 &&
-			option.config_last_tab <= 3 ? option.config_last_tab : 0);
+			option.config_last_tab <= 4 ? option.config_last_tab : 0);
 		break;
 
 	case WM_UAHDRAWMENU:
@@ -3600,6 +3616,23 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 		}
 		break;
 
+	case WM_TILE_SAMPLE:
+		{
+			DATA_INFO *sample, *copy;
+			TCHAR error[BUF_SIZE] = TEXT("");
+			for (sample = sample_data; sample != NULL && sample != (DATA_INFO *)lParam; sample = sample->next) {}
+			if (sample == NULL) break;
+			copy = data_item_copy(sample, FALSE, FALSE, error);
+			if (copy == NULL || !history_add(&history_data.child, copy, FALSE)) {
+				data_free(copy);
+				if (*error) MessageBox(hWnd, error, ERROR_TITLE, MB_OK | MB_ICONERROR);
+				break;
+			}
+			if (option.history_save == 1 && option.history_always_save == 1) SendMessage(hWnd, WM_HISTORY_SAVE, 0, 0);
+			SendMessage(hWnd, WM_HISTORY_CHANGED, 0, 0);
+		}
+		break;
+
 	case WM_VIEWER_SHOW_FAVORITES:
 		viewer_select_tab(hWnd, 1);
 		break;
@@ -3643,7 +3676,7 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			}
 			break;
 		case ID_CLIPMASTER_SETTINGS:
-			viewer_select_tab(hWnd, 3);
+			viewer_select_tab(hWnd, 4);
 			break;
 
 		case ID_ACCEL_CTRL_TAB:

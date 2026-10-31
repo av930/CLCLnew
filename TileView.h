@@ -9,11 +9,13 @@
 #define WM_TILE_NEW (WM_APP + 1143)
 #define WM_TILE_EDIT (WM_APP + 1144)
 #define WM_TILE_DELETE (WM_APP + 1145)
+#define WM_TILE_SAMPLE (WM_APP + 1146)
 
 HWND tileview_create(HINSTANCE instance, HWND parent, int identifier);
 void tileview_refresh(HWND window, DATA_INFO *items);
 void tileview_search(HWND window, const TCHAR *keyword);
 void tileview_favorites(HWND window, BOOL enabled);
+void tileview_samples(HWND window, BOOL enabled);
 BOOL tileview_portrait_image(HWND window, DATA_INFO *item);
 BOOL tileview_has_image(HWND window, DATA_INFO *item);
 

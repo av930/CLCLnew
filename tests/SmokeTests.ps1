@@ -1,4 +1,4 @@
-param([string]$BuildDirectory = (Join-Path $PSScriptRoot '..\Release'), [switch]$LayoutOnly, [switch]$SettingsOnly, [switch]$CategoryOnly)
+param([string]$BuildDirectory = (Join-Path $PSScriptRoot '..\Release'), [switch]$LayoutOnly, [switch]$SettingsOnly, [switch]$CategoryOnly, [switch]$SampleOnly)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -137,7 +137,7 @@ function Get-ClclTiles([int]$Identifier = 125, [switch]$NoRefresh) {
     $main = [ClclSmokeNative]::FindWindow('CLCLNewMain', 'CLCL_new')
     if (-not $NoRefresh) { [void](Send-Clcl $main 786 ([IntPtr]0x7F01)) }
     $viewer = [ClclSmokeNative]::FindWindow('CLCLViewer', 'ClipMaster')
-    if (-not $NoRefresh) { [void](Send-Clcl $viewer 33890 ([IntPtr][int]($Identifier -eq 128))) }
+    if (-not $NoRefresh) { [void](Send-Clcl $viewer 33890 ([IntPtr][int]$(switch ($Identifier) { 128 { 1 } 131 { 3 } default { 0 } }))) }
     $tiles = [ClclSmokeNative]::GetDlgItem($viewer, $Identifier)
     [uint32]$processId = 0
     [void][ClclSmokeNative]::GetWindowThreadProcessId($tiles, [ref]$processId)
@@ -333,13 +333,88 @@ try {
         } finally { $montageGraphics.Dispose(); $montage.Dispose() }
         return
     }
+    if ($SampleOnly) {
+        $tabs = [ClclSmokeNative]::GetDlgItem($text.Viewer, 120)
+        Assert-Clcl ((Send-Clcl $tabs 4868).ToInt32() -eq 5) 'Viewer has five tabs'
+        $historyBefore = Get-ClclTiles
+        $samples = Get-ClclTiles 131
+        Assert-Clcl ([ClclSmokeNative]::IsWindowVisible($samples.Window)) 'ClipSample tab is shown before Setting'
+        Assert-Clcl ((Send-Clcl $tabs 4875).ToInt32() -eq 3) 'ClipSample is tab index 3'
+        Assert-Clcl ($samples.Count -eq 12) "ClipSample creates 12 sample panels (actual: $($samples.Count))"
+        $samplePath = Join-Path $temporary 'samples\Lorem Ipsum.txt'
+        Assert-Clcl ((Test-Path -LiteralPath $samplePath) -and ([IO.File]::ReadAllText($samplePath) -eq 'Lorem Ipsum')) 'Lorem Ipsum sample file is created'
+        $dpi = [ClclSmokeNative]::GetDpiForWindow($samples.Window)
+        $cell = [int][Math]::Floor($dpi + 0.5)
+        $gap = [int][Math]::Floor(8 * $dpi / 96.0 + 0.5)
+        $small = [int][Math]::Floor(48 * $dpi / 96.0 + 0.5)
+        $expectedKinds = 1, 2, 3, 1, 1, 1, 1, 1, 2, 3, 4, 5
+        $expectedCategories = 'T', 'T', 'T', 'R', 'F', 'A', 'D', 'I', 'I', 'I', 'I', 'I'
+        $colors = @(@(214, 69, 65), @(236, 150, 34), @(46, 160, 90), @(52, 120, 205), @(130, 80, 190))
+        [void](Send-Clcl $samples.Window 277 ([IntPtr]6))
+        $client = New-Object int[] 4
+        [void][ClclSmokeNative]::GetClientRect($samples.Window, $client)
+        $bitmap = New-Object Drawing.Bitmap $client[2], $client[3]
+        $graphics = [Drawing.Graphics]::FromImage($bitmap)
+        try {
+            $screenBounds = New-Object int[] 4
+            [void][ClclTabSmokeNative]::GetWindowRect($samples.Window, $screenBounds)
+            [void][ClclTabSmokeNative]::DwmFlush()
+            $graphics.CopyFromScreen($screenBounds[0], $screenBounds[1], 0, 0, $bitmap.Size)
+        } finally { $graphics.Dispose() }
+        try {
+            for ($index = 0; $index -lt 12; $index++) {
+                $kind = $expectedKinds[$index]
+                $left = [BitConverter]::ToInt32($samples.Entries, $index * 72 + 36)
+                $top = [BitConverter]::ToInt32($samples.Entries, $index * 72 + 40)
+                $right = [BitConverter]::ToInt32($samples.Entries, $index * 72 + 44)
+                $bottom = [BitConverter]::ToInt32($samples.Entries, $index * 72 + 48)
+                $columns = switch ($kind) { 3 { 4 } 5 { 1 } default { 2 } }
+                $height = switch ($kind) { 1 { $small } 2 { $cell } 3 { $cell } default { 2 * $cell + $gap } }
+                Assert-Clcl ([BitConverter]::ToInt32($samples.Entries, $index * 72 + 52) -eq $kind -and ($right - $left) -eq $columns * ($cell + $gap) - $gap -and ($bottom - $top) -eq $height) "Sample $index ($($expectedCategories[$index])) uses panel kind $kind"
+                $level = if ($expectedCategories[$index] -in 'F', 'A', 'D') { 88 } else { 160 }
+                $badge = $bitmap.GetPixel($right - [int](13 * $dpi / 96) , $bottom - [int](21 * $dpi / 96))
+                Assert-Clcl ($badge.R -eq $level -and $badge.G -eq $level -and $badge.B -eq $level) "Sample $index shows the $($expectedCategories[$index]) category badge color"
+                if ($index -ge 7) {
+                    $color = $bitmap.GetPixel([int](($left + $right) / 2), [int](($top + $bottom) / 2) - [int](12 * $dpi / 96))
+                    $expected = $colors[$index - 7]
+                    Assert-Clcl ($color.R -eq $expected[0] -and $color.G -eq $expected[1] -and $color.B -eq $expected[2]) "Image sample $($index - 6) uses a unique solid color"
+                }
+                for ($other = 0; $other -lt $index; $other++) {
+                    $otherLeft = [BitConverter]::ToInt32($samples.Entries, $other * 72 + 36)
+                    $otherTop = [BitConverter]::ToInt32($samples.Entries, $other * 72 + 40)
+                    $otherRight = [BitConverter]::ToInt32($samples.Entries, $other * 72 + 44)
+                    $otherBottom = [BitConverter]::ToInt32($samples.Entries, $other * 72 + 48)
+                    if (-not ($right -le $otherLeft -or $left -ge $otherRight -or $bottom -le $otherTop -or $top -ge $otherBottom)) { throw "Samples $index and $other overlap" }
+                }
+            }
+            Write-Output '[OKAY] Sample panels do not overlap'
+            $bitmap.Save((Join-Path ([IO.Path]::GetTempPath()) 'CLCL_samples.png'), [Drawing.Imaging.ImageFormat]::Png)
+        } finally { $bitmap.Dispose() }
+        for ($index = 0; $index -lt 12; $index++) {
+            $before = Get-ClclTiles
+            $samples = Get-ClclTiles 131
+            $centerX = [int](([BitConverter]::ToInt32($samples.Entries, $index * 72 + 36) + [BitConverter]::ToInt32($samples.Entries, $index * 72 + 44)) / 2)
+            $centerY = [int](([BitConverter]::ToInt32($samples.Entries, $index * 72 + 40) + [BitConverter]::ToInt32($samples.Entries, $index * 72 + 48)) / 2)
+            [void](Send-Clcl $samples.Window 514 ([IntPtr]::Zero) ([IntPtr](($centerY -shl 16) -bor $centerX)))
+            $after = Get-ClclTiles
+            Assert-Clcl ($after.Count -eq $before.Count + 1) "Clicking sample $index adds a ClipMaster clip"
+            Assert-Clcl ([BitConverter]::ToInt32($after.Entries, 52) -eq $expectedKinds[$index] -and ([BitConverter]::ToInt32($after.Entries, 8) -ne 0) -eq ($index -ge 7)) "Clicked sample $index keeps its size and preview in ClipMaster"
+        }
+        Assert-Clcl ((Send-Clcl $historyBefore.Main 33071 ([IntPtr]1)).ToInt32() -ne 0) 'Clicked samples are saved in history'
+        Stop-Clcl $testProcess
+        $testProcess = Start-Clcl $temporary
+        $restored = Get-ClclTiles
+        Assert-Clcl ($restored.Count -eq $historyBefore.Count + 12) 'Clicked samples survive restart'
+        Write-Output '[OKAY] All isolated sample tab tests passed'
+        return
+    }
     $panel = [ClclSmokeNative]::GetDlgItem($text.Viewer, 122)
     foreach ($control in 5420..5422) {
         Assert-Clcl ([ClclSmokeNative]::GetDlgItem($panel, $control) -eq [IntPtr]::Zero) "Initial alignment control $control is removed"
     }
     $unicodeOption = [ClclSmokeNative]::GetDlgItem($panel, 5116)
     Assert-Clcl ((Get-ClclText $unicodeOption).StartsWith('Ansi2Unicode text')) 'Unicode option uses the new name and original control ID'
-    [void](Send-Clcl $text.Viewer 33890 ([IntPtr]3))
+    [void](Send-Clcl $text.Viewer 33890 ([IntPtr]4))
     $viewerBounds = New-Object int[] 4
     [void][ClclTabSmokeNative]::GetWindowRect($text.Viewer, $viewerBounds)
     $workArea = New-Object int[] 4
@@ -583,8 +658,11 @@ try {
         try { $graphics.Clear([System.Drawing.Color]::MediumSeaGreen) } finally { $graphics.Dispose() }
         Set-ClclImage $bitmap
     } finally { $bitmap.Dispose() }
-    [void](Send-Clcl $initial.Main 275 ([IntPtr]1))
-    $image = Get-ClclTiles
+    $captureTimer = [Diagnostics.Stopwatch]::StartNew()
+    do {
+        [void](Send-Clcl $initial.Main 275 ([IntPtr]1))
+        $image = Get-ClclTiles
+    } while ($image.Count -eq $text.Count -and $captureTimer.ElapsedMilliseconds -lt 3000)
     Assert-Clcl ($image.Count -eq $text.Count + 1) "Image copy adds one tile ($($text.Count) -> $($image.Count))"
     Assert-Clcl ([Convert]::ToBase64String($text.Positions) -eq [Convert]::ToBase64String($image.Positions, 0, $text.Positions.Length)) 'Image capture preserves older cached positions'
     $dpi = [ClclSmokeNative]::GetDpiForWindow($image.Window)
@@ -616,7 +694,7 @@ try {
             Assert-Clcl ($previousTop -lt $paintTop -or ($previousTop -eq $paintTop -and $previousLeft -le $paintLeft)) "Paint step $index proceeds top-to-bottom and left-to-right"
         }
     }
-    foreach ($tab in 0, 1, 2, 3, 0) {
+    foreach ($tab in 0, 1, 2, 3, 4, 0) {
         [void](Send-Clcl $image.Viewer 33890 ([IntPtr]$tab))
         [void](Send-Clcl $image.Main 33068)
         [void](Send-Clcl $image.Viewer 33118)
@@ -625,7 +703,7 @@ try {
         foreach ($control in 100, 101) {
             Assert-Clcl (([ClclSmokeNative]::GetWindowLong([ClclSmokeNative]::GetDlgItem($image.Viewer, $control), -16) -band 0x10000000) -eq 0) "Legacy control $control stays hidden on tab $tab"
         }
-        $visibleControl = @(125, 128, 129, 122)[$tab]
+        $visibleControl = @(125, 128, 129, 131, 122)[$tab]
         Assert-Clcl ([ClclSmokeNative]::IsWindowVisible([ClclSmokeNative]::GetDlgItem($image.Viewer, $visibleControl))) "Tab $tab content is visible"
     }
     $spaceAvailable = [ClclSmokeNative]::RegisterHotKey([IntPtr]::Zero, 301, 1, 32)
@@ -691,7 +769,7 @@ try {
     $launcher = Start-Clcl $temporary 'CLCLSet.exe'
     if (-not $launcher.WaitForExit(10000)) { throw 'Settings launcher did not exit' }
     [void](Send-Clcl $reloaded.Main 0)
-    Assert-Clcl ((Send-Clcl ([ClclSmokeNative]::GetDlgItem($reloaded.Viewer, 120)) 4875).ToInt32() -eq 3) 'Settings launcher selects Settings'
+    Assert-Clcl ((Send-Clcl ([ClclSmokeNative]::GetDlgItem($reloaded.Viewer, 120)) 4875).ToInt32() -eq 4) 'Settings launcher selects Settings'
     [void](Send-Clcl $reloaded.Main 32871)
     $imageItem = [IntPtr][BitConverter]::ToInt32($reloaded.Entries, 0)
     Assert-Clcl ((Send-Clcl $reloaded.Main 33168 ([IntPtr]1) $imageItem).ToInt32() -eq 1) 'Saved image copies after restart'

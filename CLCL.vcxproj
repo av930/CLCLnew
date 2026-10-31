@@ -178,6 +178,7 @@
     <ClCompile Include="ToolTip.c" />
     <ClCompile Include="TreeView.c" />
     <ClCompile Include="TileView.c" />
+    <ClCompile Include="ClipSample.c" />
     <ClCompile Include="ClipEdit.c" />
     <ClCompile Include="PastePlus.cpp" />
     <ClCompile Include="Hotkey.c" />
@@ -206,6 +207,7 @@
     <ClInclude Include="DarkMode.h" />
     <ClInclude Include="Data.h" />
     <ClInclude Include="TileView.h" />
+    <ClInclude Include="ClipSample.h" />
     <ClInclude Include="ClipEdit.h" />
     <ClInclude Include="PastePlus.h" />
     <ClInclude Include="Hotkey.h" />

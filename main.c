@@ -2276,7 +2276,7 @@ static LRESULT CALLBACK main_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 		if (hViewerWnd == NULL) SendMessage(hWnd, WM_COMMAND, ID_MENUITEM_VIEWER, 0);
 		if (hViewerWnd != NULL) {
 			ShowWindow(hViewerWnd, IsIconic(hViewerWnd) ? SW_RESTORE : SW_SHOW);
-			SendMessage(hViewerWnd, WM_VIEWER_SELECT_TAB, 3, 0);
+			SendMessage(hViewerWnd, WM_VIEWER_SELECT_TAB, 4, 0);
 			_SetForegroundWindow(hViewerWnd);
 		}
 		break;

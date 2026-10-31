@@ -47,6 +47,7 @@ typedef struct {
     int position_count, layout_width, layout_dpi;
     int left, top, row_height, occupied[2], current_span;
     int *paint_order;
+    BOOL samples;
 } TILE_VIEW;
 
 static int tile_scale(HWND window, int value)
@@ -510,6 +511,12 @@ void tileview_favorites(HWND window, BOOL enabled)
     if (view != NULL) view->favorites = enabled;
 }
 
+void tileview_samples(HWND window, BOOL enabled)
+{
+    TILE_VIEW *view = (TILE_VIEW *)GetWindowLongPtr(window, GWLP_USERDATA);
+    if (view != NULL) view->samples = enabled;
+}
+
 static void tile_draw_text(HDC context, RECT bounds, const TCHAR *text, const TCHAR *keyword, COLORREF foreground)
 {
     TEXTMETRIC metrics;
@@ -597,6 +604,7 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
         if (!IsRectEmpty(&entry->divider) && bounds.bottom >= 0 && bounds.top <= client.bottom) {
             wsprintf(date, TEXT("%02d/%02d/%s"), entry->date.wMonth, entry->date.wDay,
                 entry->date.wHour < 12 ? TEXT("\xC624\xC804") : TEXT("\xC624\xD6C4"));
+            if (view->samples) lstrcpy(date, TEXT("Clip samples"));
             SetTextColor(context, dark_mode_get_color(COLOR_WINDOWTEXT));
             DrawText(context, date, -1, &bounds, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
             MoveToEx(context, bounds.left + tile_scale(window, 100), (bounds.top + bounds.bottom) / 2, NULL);
@@ -779,6 +787,9 @@ static LRESULT CALLBACK tile_proc(HWND window, UINT message, WPARAM parameter, L
                 view->selected = index;
                 SetFocus(window);
                 InvalidateRect(window, NULL, FALSE);
+                if (view->samples) {
+                    return message == WM_LBUTTONUP ? SendMessage(GetParent(window), WM_TILE_SAMPLE, entry->kind, (LPARAM)entry->item) : 0;
+                }
                 if (view->favorites) {
                     notification = entry->item == NULL ? WM_TILE_NEW : message == WM_RBUTTONUP ? WM_TILE_EDIT : WM_TILE_PASTE;
                     if (entry->item != NULL && message == WM_LBUTTONUP &&
@@ -805,7 +816,7 @@ static LRESULT CALLBACK tile_proc(HWND window, UINT message, WPARAM parameter, L
         }
         if (parameter == VK_RETURN && view->selected >= 0 && view->selected < view->count) {
             TILE_ENTRY *entry = &view->entries[view->selected];
-            return SendMessage(GetParent(window), entry->item == NULL ? WM_TILE_NEW : WM_TILE_PASTE,
+            return SendMessage(GetParent(window), view->samples ? WM_TILE_SAMPLE : entry->item == NULL ? WM_TILE_NEW : WM_TILE_PASTE,
                 entry->kind, (LPARAM)entry->item);
         }
         break;

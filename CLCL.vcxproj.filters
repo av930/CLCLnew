@@ -135,6 +135,9 @@
     <ClCompile Include="TileView.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ClipSample.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Viewer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -185,6 +188,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TileView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ClipSample.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="File.h">
