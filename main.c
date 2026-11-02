@@ -117,7 +117,6 @@ DATA_INFO regist_data;
 static DATA_INFO *paste_di;
 static HWND viewer_target;
 static BOOL config_hotkeys_ready;
-static BOOL caps_combo_used;
 static UINT caps_combo_key;
 
 // ツールメニュー情報
@@ -1408,7 +1407,6 @@ static void unregist_hotkey(const HWND hWnd)
 		config_hotkey_hook = NULL;
 	}
 	caps_lock_held = FALSE;
-	caps_combo_used = FALSE;
 	caps_combo_key = 0;
 
 	// Action
@@ -1434,12 +1432,7 @@ static LRESULT CALLBACK config_hotkey_proc(int nCode, WPARAM wParam, LPARAM lPar
 	if (nCode >= 0 && !(key_info->flags & LLKHF_INJECTED)) {
 		if (key_info->vkCode == VK_CAPITAL) {
 			caps_lock_held = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
-			if (caps_lock_held) caps_combo_used = FALSE;
-			else if (!caps_combo_used) {
-				keybd_event(VK_CAPITAL, 0, 0, 0);
-				keybd_event(VK_CAPITAL, 0, KEYEVENTF_KEYUP, 0);
-			}
-			return 1;
+			return CallNextHookEx(config_hotkey_hook, nCode, wParam, lParam);
 		}
 		if ((wParam == WM_KEYUP || wParam == WM_SYSKEYUP) && caps_combo_key == key_info->vkCode) {
 			caps_combo_key = 0;
@@ -1465,7 +1458,6 @@ static LRESULT CALLBACK config_hotkey_proc(int nCode, WPARAM wParam, LPARAM lPar
 					}
 					if (caps_combo_key != key_info->vkCode) PostMessage(main_window, WM_HOTKEY, identifiers[index], 0);
 					caps_combo_key = key_info->vkCode;
-					caps_combo_used = TRUE;
 					return 1;
 				}
 			}
