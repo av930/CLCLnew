@@ -9,6 +9,7 @@ if (-not ('ClclX64Native' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class ClclX64Native {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct Date { public ushort Year, Month, DayOfWeek, Day, Hour, Minute, Second, Milliseconds; }
@@ -22,10 +23,15 @@ public static class ClclX64Native {
     }
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string name, string title);
     [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr window, int id);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessageW")] public static extern IntPtr SendMessageText(IntPtr window, uint message, IntPtr parameter, StringBuilder text);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rectangle);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr parameter, ref Rect data);
     [DllImport("user32.dll")] public static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
     [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, IntPtr parameter, IntPtr data, uint flags, uint timeout, out UIntPtr result);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr parameter, IntPtr data);
+    [DllImport("gdi32.dll", EntryPoint="GetObjectW")] public static extern int GetObjectData(IntPtr handle, int size, [Out] byte[] data);
     [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, uint process);
     [DllImport("kernel32.dll")] static extern bool ReadProcessMemory(IntPtr process, IntPtr address, byte[] buffer, int size, out IntPtr read);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
@@ -114,7 +120,45 @@ try {
     Wait-X64 { [ClclX64Native]::GetDlgItem([ClclX64Native]::FindWindow('CLCLViewer', 'ClipMaster'),120) -ne [IntPtr]::Zero }
     $main = [ClclX64Native]::FindWindow('CLCLNewMain', 'CLCL_new')
     $viewer = [ClclX64Native]::FindWindow('CLCLViewer', 'ClipMaster')
-    Assert-X64 ((Send-X64 ([ClclX64Native]::GetDlgItem($viewer, 120)) 4868).ToInt64() -eq 5) 'Five tabs are available'
+    Assert-X64 ((Send-X64 ([ClclX64Native]::GetDlgItem($viewer, 120)) 4868).ToInt64() -eq 6) 'Six tabs are available'
+    $symbols = [ClclX64Native]::GetDlgItem($viewer, 132)
+    Assert-X64 ($symbols -ne [IntPtr]::Zero) 'Symbols has an independent pane'
+    Assert-X64 ([ClclX64Native]::GetDlgItem([ClclX64Native]::GetDlgItem($viewer, 129), 102) -eq [IntPtr]::Zero) 'PastePlus has no symbol category selector'
+    $symbolCount = 0
+    for ($identifier = 2000; $identifier -lt 2124; $identifier++) {
+        if ([ClclX64Native]::GetDlgItem($symbols, $identifier) -ne [IntPtr]::Zero) { $symbolCount++ }
+    }
+    Assert-X64 ($symbolCount -eq 124) 'All 124 symbols are expanded in the Symbols tab'
+    $charmapButton = [ClclX64Native]::GetDlgItem($symbols, 4000)
+    Assert-X64 ($charmapButton -ne [IntPtr]::Zero) 'Character Map button is available'
+    $label = New-Object Text.StringBuilder 80
+    [void][ClclX64Native]::SendMessageText($charmapButton, 13, [IntPtr]$label.Capacity, $label)
+    Assert-X64 ($label.ToString() -eq 'Open Character Map (default Wingdings)') 'Character Map button label is correct'
+    $style = [ClclX64Native]::GetWindowLongPtr($charmapButton, -16).ToInt64()
+    Assert-X64 (($style -band 0xF) -eq 0xB) 'Character Map button uses custom orange drawing'
+    $symbolButton = [ClclX64Native]::GetDlgItem($symbols, 2000)
+    $symbolBounds = [ClclX64Native+Rect]::new()
+    Assert-X64 ([ClclX64Native]::GetWindowRect($symbolButton, [ref]$symbolBounds)) 'Symbol button bounds are available'
+    $dpi = [ClclX64Native]::GetDpiForWindow($symbolButton)
+    $lastSymbolBounds = [ClclX64Native+Rect]::new()
+    $charmapBounds = [ClclX64Native+Rect]::new()
+    [void][ClclX64Native]::GetWindowRect([ClclX64Native]::GetDlgItem($symbols, 2123), [ref]$lastSymbolBounds)
+    [void][ClclX64Native]::GetWindowRect($charmapButton, [ref]$charmapBounds)
+    $minimumGap = [int][Math]::Floor(40 * $dpi / 96.0)
+    Assert-X64 (($charmapBounds.Top - $lastSymbolBounds.Bottom) -ge $minimumGap) 'Character Map button has 20px of added top spacing'
+    $expectedButtonSize = [int][Math]::Round(66 * $dpi / 96.0)
+    Assert-X64 (($symbolBounds.Right - $symbolBounds.Left) -eq $expectedButtonSize -and
+        ($symbolBounds.Bottom - $symbolBounds.Top) -eq $expectedButtonSize) 'Symbol buttons are 1.5 times larger'
+    $font = Send-X64 $symbolButton 49
+    $fontData = New-Object byte[] 92
+    Assert-X64 ([ClclX64Native]::GetObjectData($font, $fontData.Length, $fontData) -eq $fontData.Length) 'Symbol font metrics are available'
+    $fontHeight = [BitConverter]::ToInt32($fontData, 0)
+    $expectedFontHeight = -[int][Math]::Round(24 * $dpi / 72.0)
+    Assert-X64 ($fontHeight -eq $expectedFontHeight) 'Symbol glyphs use a 24-point font'
+    $textMargin = [ClclX64Native+Rect]::new()
+    [void][ClclX64Native]::SendMessage($symbolButton, 0x1605, [IntPtr]::Zero, [ref]$textMargin)
+    Assert-X64 ($textMargin.Left -eq 0 -and $textMargin.Top -eq 0 -and
+        $textMargin.Right -eq 0 -and $textMargin.Bottom -eq 0) 'Symbol button text margins are reduced to zero'
     [Windows.Forms.Clipboard]::SetDataObject('x64 baseline ' + [Guid]::NewGuid(), $true, 10, 100)
     [void](Send-X64 $main 275 ([IntPtr]1))
     $before = (Tiles-X64).Count

@@ -335,11 +335,19 @@ try {
     }
     if ($SampleOnly) {
         $tabs = [ClclSmokeNative]::GetDlgItem($text.Viewer, 120)
-        Assert-Clcl ((Send-Clcl $tabs 4868).ToInt32() -eq 5) 'Viewer has five tabs'
+        Assert-Clcl ((Send-Clcl $tabs 4868).ToInt32() -eq 6) 'Viewer has six tabs'
+        $symbols = [ClclSmokeNative]::GetDlgItem($text.Viewer, 132)
+        Assert-Clcl ($symbols -ne [IntPtr]::Zero) 'Symbols has an independent pane'
+        Assert-Clcl ([ClclSmokeNative]::GetDlgItem([ClclSmokeNative]::GetDlgItem($text.Viewer, 129), 102) -eq [IntPtr]::Zero) 'PastePlus has no symbol category selector'
+        $symbolCount = 0
+        for ($identifier = 2000; $identifier -lt 2124; $identifier++) {
+            if ([ClclSmokeNative]::GetDlgItem($symbols, $identifier) -ne [IntPtr]::Zero) { $symbolCount++ }
+        }
+        Assert-Clcl ($symbolCount -eq 124) 'All 124 symbols are expanded in the Symbols tab'
         $historyBefore = Get-ClclTiles
         $samples = Get-ClclTiles 131
         Assert-Clcl ([ClclSmokeNative]::IsWindowVisible($samples.Window)) 'ClipSample tab is shown before Setting'
-        Assert-Clcl ((Send-Clcl $tabs 4875).ToInt32() -eq 3) 'ClipSample is tab index 3'
+        Assert-Clcl ((Send-Clcl $tabs 4875).ToInt32() -eq 4) 'ClipSample is tab index 4'
         Assert-Clcl ($samples.Count -eq 12) "ClipSample creates 12 sample panels (actual: $($samples.Count))"
         $samplePath = Join-Path $temporary 'samples\Lorem Ipsum.txt'
         Assert-Clcl ((Test-Path -LiteralPath $samplePath) -and ([IO.File]::ReadAllText($samplePath) -eq 'Lorem Ipsum')) 'Lorem Ipsum sample file is created'
@@ -737,8 +745,10 @@ try {
     try { Assert-Clcl ([ClclTabSmokeNative]::PrintWindow($tabs, $tabContext, 0)) 'Colored tabs render to a bitmap' }
     finally { $tabGraphics.ReleaseHdc($tabContext); $tabGraphics.Dispose() }
     try {
-        $tabColors = @([Drawing.Color]::FromArgb(219, 235, 252), [Drawing.Color]::FromArgb(219, 242, 226),
-            [Drawing.Color]::FromArgb(255, 234, 210), [Drawing.Color]::FromArgb(250, 222, 230))
+        $tabColors = @(
+            [Drawing.Color]::FromArgb(219, 235, 252), [Drawing.Color]::FromArgb(219, 242, 226),
+            [Drawing.Color]::FromArgb(255, 234, 210), [Drawing.Color]::FromArgb(250, 239, 207),
+            [Drawing.Color]::FromArgb(230, 224, 248), [Drawing.Color]::FromArgb(250, 222, 230))
         foreach ($color in $tabColors) {
             $pixels = 0
             for ($pixelY = 0; $pixelY -lt $tabImage.Height; $pixelY++) {
@@ -769,7 +779,7 @@ try {
     $launcher = Start-Clcl $temporary 'CLCLSet.exe'
     if (-not $launcher.WaitForExit(10000)) { throw 'Settings launcher did not exit' }
     [void](Send-Clcl $reloaded.Main 0)
-    Assert-Clcl ((Send-Clcl ([ClclSmokeNative]::GetDlgItem($reloaded.Viewer, 120)) 4875).ToInt32() -eq 4) 'Settings launcher selects Settings'
+    Assert-Clcl ((Send-Clcl ([ClclSmokeNative]::GetDlgItem($reloaded.Viewer, 120)) 4875).ToInt32() -eq 5) 'Settings launcher selects Settings'
     [void](Send-Clcl $reloaded.Main 32871)
     $imageItem = [IntPtr][BitConverter]::ToInt32($reloaded.Entries, 0)
     Assert-Clcl ((Send-Clcl $reloaded.Main 33168 ([IntPtr]1) $imageItem).ToInt32() -eq 1) 'Saved image copies after restart'

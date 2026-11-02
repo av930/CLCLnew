@@ -34,14 +34,37 @@ struct FormatTile {
 struct PastePane {
     DATA_INFO *snapshot = nullptr;
     std::vector<FormatTile> tiles;
-    std::vector<HWND> symbols;
     HWND information = nullptr;
     HWND status = nullptr;
-    HWND categories = nullptr;
     int offset = 0;
     int height = 0;
-    int category = 0;
     bool layout = false;
+};
+
+struct SymbolButton {
+    HWND window;
+    wchar_t symbol;
+};
+
+struct SymbolsPane {
+    std::vector<HWND> headings;
+    std::vector<SymbolButton> symbols;
+    HWND charmap_button = nullptr;
+    HFONT font = nullptr;
+    int offset = 0;
+    int height = 0;
+    bool layout = false;
+};
+
+struct CharacterMapWindow {
+    HWND window = nullptr;
+    DWORD process = 0;
+};
+
+struct CharacterMapFontSearch {
+    HWND combo = nullptr;
+    LPVOID font_name = nullptr;
+    int index = CB_ERR;
 };
 
 static int pane_scale(HWND window, int value) { return MulDiv(value, GetDpiForWindow(window), 96); }
@@ -236,6 +259,10 @@ static HWND pane_control(HWND owner, const wchar_t *type, const wchar_t *text, D
     return control;
 }
 
+static const wchar_t *symbol_names[] = {
+    L"Common Symbols", L"Arrows", L"Mathematics", L"Currency", L"Greek", L"Box Drawing"
+};
+
 static const wchar_t *symbol_sets[] = {
     L"\x00A9\x00AE\x2122\x2022\x2026\x00B0\x00A7\x00B6\x2713\x2717\x2605\x2606\x2665\x2666\x2663\x2660\x260E\x2709\x2611\x2610\x203B\x2030\x2116\x00B7",
     L"\x2190\x2191\x2192\x2193\x2194\x2195\x2196\x2197\x2198\x2199\x21D0\x21D1\x21D2\x21D3\x21D4\x21B5\x21BA\x21BB",
@@ -245,16 +272,245 @@ static const wchar_t *symbol_sets[] = {
     L"\x2500\x2502\x250C\x2510\x2514\x2518\x251C\x2524\x252C\x2534\x253C\x2550\x2551\x2554\x2557\x255A\x255D\x2560\x2563\x2566\x2569\x256C"
 };
 
-static void pane_symbols(HWND window, PastePane *pane)
+static void pane_text_paste(HWND window, const std::wstring &text);
+
+static BOOL CALLBACK charmap_window_proc(HWND window, LPARAM reference)
 {
-    for (HWND button : pane->symbols) DestroyWindow(button);
-    pane->symbols.clear();
-    const wchar_t *symbols = symbol_sets[pane->category];
-    for (int index = 0; symbols[index]; index++) {
-        wchar_t label[] = { symbols[index], 0 };
-        HWND button = pane_control(window, L"BUTTON", label, BS_PUSHBUTTON | WS_TABSTOP, 2000 + index);
-        pane->symbols.push_back(button);
+    CharacterMapWindow *search = reinterpret_cast<CharacterMapWindow *>(reference);
+    wchar_t module[MAX_PATH];
+    if (GetWindowModuleFileName(window, module, ARRAYSIZE(module)) == 0 ||
+        lstrcmpi(PathFindFileName(module), L"charmap.exe") != 0) return TRUE;
+    search->window = window;
+    GetWindowThreadProcessId(window, &search->process);
+    return FALSE;
+}
+
+static BOOL CALLBACK charmap_font_combo_proc(HWND control, LPARAM reference)
+{
+    CharacterMapFontSearch *search = reinterpret_cast<CharacterMapFontSearch *>(reference);
+    wchar_t class_name[32];
+    DWORD_PTR index = CB_ERR;
+    if (GetClassName(control, class_name, ARRAYSIZE(class_name)) == 0 ||
+        lstrcmpi(class_name, L"ComboBox") != 0 ||
+        !SendMessageTimeout(control, CB_FINDSTRINGEXACT, (WPARAM)-1,
+            reinterpret_cast<LPARAM>(search->font_name), SMTO_ABORTIFHUNG, 1000, &index) ||
+        static_cast<LRESULT>(index) == CB_ERR) return TRUE;
+    search->combo = control;
+    search->index = static_cast<int>(index);
+    return FALSE;
+}
+
+static BOOL charmap_select_wingdings(HWND window, const DWORD process_id)
+{
+    const wchar_t font_name[] = L"Wingdings";
+    HANDLE process = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_WRITE, FALSE, process_id);
+    LPVOID remote_name;
+    SIZE_T written = 0;
+    BOOL selected = FALSE;
+    if (!process) return FALSE;
+    remote_name = VirtualAllocEx(process, nullptr, sizeof(font_name), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (remote_name && WriteProcessMemory(process, remote_name, font_name, sizeof(font_name), &written) &&
+        written == sizeof(font_name)) {
+        CharacterMapFontSearch search = { nullptr, remote_name, CB_ERR };
+        EnumChildWindows(window, charmap_font_combo_proc, reinterpret_cast<LPARAM>(&search));
+        if (search.combo && SendMessage(search.combo, CB_SETCURSEL, search.index, 0) != CB_ERR) {
+            SendMessage(GetParent(search.combo), WM_COMMAND,
+                MAKEWPARAM(GetDlgCtrlID(search.combo), CBN_SELCHANGE), reinterpret_cast<LPARAM>(search.combo));
+            selected = TRUE;
+        }
     }
+    if (remote_name) VirtualFreeEx(process, remote_name, 0, MEM_RELEASE);
+    CloseHandle(process);
+    return selected;
+}
+
+static void symbols_open_character_map(HWND owner)
+{
+    CharacterMapWindow map = {};
+    SHELLEXECUTEINFO execute = {};
+    wchar_t executable[MAX_PATH];
+    UINT length;
+    EnumWindows(charmap_window_proc, reinterpret_cast<LPARAM>(&map));
+    if (!map.window) {
+        length = GetSystemDirectory(executable, ARRAYSIZE(executable));
+        if (!length || length >= ARRAYSIZE(executable) || !PathAppend(executable, L"charmap.exe")) return;
+        execute.cbSize = sizeof(execute);
+        execute.fMask = SEE_MASK_NOCLOSEPROCESS;
+        execute.lpVerb = L"open";
+        execute.lpFile = executable;
+        execute.nShow = SW_SHOWNORMAL;
+        if (!ShellExecuteEx(&execute)) {
+            MessageBox(owner, L"Windows Character Map could not be opened.", L"ClipMaster", MB_OK | MB_ICONERROR);
+            return;
+        }
+        if (execute.hProcess) {
+            WaitForInputIdle(execute.hProcess, 5000);
+            CloseHandle(execute.hProcess);
+        }
+        EnumWindows(charmap_window_proc, reinterpret_cast<LPARAM>(&map));
+    }
+    if (map.window) {
+        charmap_select_wingdings(map.window, map.process);
+        ShowWindow(map.window, SW_SHOW);
+        SetForegroundWindow(map.window);
+    }
+}
+
+static LRESULT CALLBACK symbol_button_proc(HWND window, UINT message, WPARAM parameter, LPARAM data,
+    UINT_PTR identifier, DWORD_PTR reference)
+{
+    UNREFERENCED_PARAMETER(identifier);
+    UNREFERENCED_PARAMETER(reference);
+    if (message == WM_MOUSEWHEEL) return SendMessage(GetParent(window), message, parameter, data);
+    return DefSubclassProc(window, message, parameter, data);
+}
+
+static void symbols_layout(HWND window, SymbolsPane *pane)
+{
+    if (pane->layout) return;
+    pane->layout = true;
+    RECT client;
+    GetClientRect(window, &client);
+    int margin = pane_scale(window, 16), gap = pane_scale(window, 6), size = pane_scale(window, 66);
+    int available = max(1, client.right - margin * 2);
+    int columns = max(1, (available + gap) / (size + gap));
+    int top = margin;
+    size_t symbol_index = 0;
+    for (int category = 0; category < ARRAYSIZE(symbol_sets); category++) {
+        MoveWindow(pane->headings[category], margin, top - pane->offset, available, pane_scale(window, 28), TRUE);
+        top += pane_scale(window, 34);
+        int count = lstrlen(symbol_sets[category]);
+        for (int index = 0; index < count; index++, symbol_index++) {
+            int left = margin + index % columns * (size + gap);
+            MoveWindow(pane->symbols[symbol_index].window, left,
+                top + index / columns * (size + gap) - pane->offset,
+                max(1, min(size, client.right - margin - left)), size, TRUE);
+        }
+        top += ((count + columns - 1) / columns) * (size + gap) + margin;
+    }
+    int charmap_gap = pane_scale(window, 20), charmap_height = pane_scale(window, 40);
+    MoveWindow(pane->charmap_button, margin, top + charmap_gap - pane->offset, available, charmap_height, TRUE);
+    pane->height = top + charmap_gap + charmap_height + margin;
+    SCROLLINFO scroll = { sizeof(scroll), SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL };
+    scroll.nMax = max(0, pane->height - 1);
+    scroll.nPage = client.bottom;
+    scroll.nPos = pane->offset;
+    SetScrollInfo(window, SB_VERT, &scroll, TRUE);
+    int adjusted = GetScrollPos(window, SB_VERT);
+    pane->layout = false;
+    if (adjusted != pane->offset) { pane->offset = adjusted; symbols_layout(window, pane); }
+}
+
+static void symbols_set_font(HWND window, SymbolsPane *pane)
+{
+    HFONT font = CreateFont(-MulDiv(24, GetDpiForWindow(window), 72), 0, 0, 0, FW_NORMAL,
+        FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Symbol");
+    if (!font) return;
+    for (const SymbolButton &button : pane->symbols)
+        SendMessage(button.window, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+    if (pane->font) DeleteObject(pane->font);
+    pane->font = font;
+}
+
+static LRESULT CALLBACK symbols_proc(HWND window, UINT message, WPARAM parameter, LPARAM data)
+{
+    SymbolsPane *pane = reinterpret_cast<SymbolsPane *>(GetWindowLongPtr(window, GWLP_USERDATA));
+    if (message == WM_CREATE) {
+        pane = new(std::nothrow) SymbolsPane;
+        if (!pane) return -1;
+        SetWindowLongPtr(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pane));
+        symbols_set_font(window, pane);
+        for (int category = 0; category < ARRAYSIZE(symbol_sets); category++) {
+            pane->headings.push_back(pane_control(window, L"STATIC", symbol_names[category], SS_LEFT | SS_CENTERIMAGE,
+                3000 + category));
+            for (int index = 0; symbol_sets[category][index]; index++) {
+                wchar_t label[] = { symbol_sets[category][index], 0 };
+                HWND button = pane_control(window, L"BUTTON", label, BS_PUSHBUTTON | WS_TABSTOP,
+                    2000 + static_cast<int>(pane->symbols.size()));
+                if (pane->font) SendMessage(button, WM_SETFONT, reinterpret_cast<WPARAM>(pane->font), TRUE);
+                RECT text_margin = {};
+                SendMessage(button, BCM_SETTEXTMARGIN, 0, reinterpret_cast<LPARAM>(&text_margin));
+                SetWindowSubclass(button, symbol_button_proc, 1, 0);
+                pane->symbols.push_back({ button, symbol_sets[category][index] });
+            }
+        }
+        pane->charmap_button = pane_control(window, L"BUTTON", L"Open Character Map (default Wingdings)",
+            BS_OWNERDRAW | WS_TABSTOP, 4000);
+        return 0;
+    }
+    if (!pane) return DefWindowProc(window, message, parameter, data);
+    switch (message) {
+    case WM_DRAWITEM: {
+        DRAWITEMSTRUCT *draw = reinterpret_cast<DRAWITEMSTRUCT *>(data);
+        if (draw && draw->CtlID == 4000) {
+            COLORREF background = (draw->itemState & ODS_SELECTED) ? RGB(190, 83, 25) : RGB(226, 116, 38);
+            HBRUSH fill = CreateSolidBrush(background);
+            HBRUSH border = CreateSolidBrush(RGB(164, 73, 24));
+            RECT text = draw->rcItem;
+            int saved = SaveDC(draw->hDC);
+            FillRect(draw->hDC, &draw->rcItem, fill);
+            FrameRect(draw->hDC, &draw->rcItem, border);
+            InflateRect(&text, -pane_scale(window, 8), 0);
+            SetBkMode(draw->hDC, TRANSPARENT);
+            SetTextColor(draw->hDC, (draw->itemState & ODS_DISABLED) ? GetSysColor(COLOR_GRAYTEXT) : RGB(255, 255, 255));
+            SelectObject(draw->hDC, GetStockObject(DEFAULT_GUI_FONT));
+            DrawText(draw->hDC, L"Open Character Map (default Wingdings)", -1, &text,
+                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+            if (draw->itemState & ODS_FOCUS) {
+                InflateRect(&text, -pane_scale(window, 2), -pane_scale(window, 2));
+                DrawFocusRect(draw->hDC, &text);
+            }
+            RestoreDC(draw->hDC, saved);
+            DeleteObject(fill);
+            DeleteObject(border);
+            return TRUE;
+        }
+        break;
+    }
+    case WM_SIZE:
+        symbols_layout(window, pane); return 0;
+    case WM_DPICHANGED_AFTERPARENT:
+        symbols_set_font(window, pane);
+        symbols_layout(window, pane);
+        return 0;
+    case WM_MOUSEWHEEL:
+    case WM_VSCROLL: {
+        SCROLLINFO scroll = { sizeof(scroll), SIF_ALL };
+        GetScrollInfo(window, SB_VERT, &scroll);
+        if (message == WM_MOUSEWHEEL) scroll.nPos -= GET_WHEEL_DELTA_WPARAM(parameter) / WHEEL_DELTA * pane_scale(window, 72);
+        else switch (LOWORD(parameter)) {
+            case SB_LINEUP: scroll.nPos -= pane_scale(window, 32); break;
+            case SB_LINEDOWN: scroll.nPos += pane_scale(window, 32); break;
+            case SB_PAGEUP: scroll.nPos -= scroll.nPage; break;
+            case SB_PAGEDOWN: scroll.nPos += scroll.nPage; break;
+            case SB_THUMBTRACK: scroll.nPos = scroll.nTrackPos; break;
+            case SB_TOP: scroll.nPos = 0; break;
+            case SB_BOTTOM: scroll.nPos = scroll.nMax; break;
+        }
+        scroll.fMask = SIF_POS;
+        SetScrollInfo(window, SB_VERT, &scroll, TRUE);
+        pane->offset = GetScrollPos(window, SB_VERT);
+        symbols_layout(window, pane);
+        return 0;
+    }
+    case WM_COMMAND: {
+        int identifier = LOWORD(parameter);
+        if (identifier == 4000) {
+            symbols_open_character_map(window);
+        } else if (identifier >= 2000 && identifier < 2000 + static_cast<int>(pane->symbols.size())) {
+            wchar_t symbol[] = { pane->symbols[identifier - 2000].symbol, 0 };
+            pane_text_paste(window, symbol);
+        }
+        return 0;
+    }
+    case WM_NCDESTROY:
+        if (pane->font) DeleteObject(pane->font);
+        delete pane;
+        SetWindowLongPtr(window, GWLP_USERDATA, 0);
+        break;
+    }
+    return DefWindowProc(window, message, parameter, data);
 }
 
 static void pane_layout(HWND window, PastePane *pane)
@@ -277,14 +533,7 @@ static void pane_layout(HWND window, PastePane *pane)
         MoveWindow(GetDlgItem(tile, 2), pane_scale(window, 8), pane_scale(window, 44), width - pane_scale(window, 16), size - pane_scale(window, 56), TRUE);
     }
     int top = pane_scale(window, 120) + static_cast<int>((pane->tiles.size() + columns - 1) / columns) * (size + gap);
-    MoveWindow(pane->categories, margin, top - pane->offset, min(pane_scale(window, 240), client.right - margin * 2), pane_scale(window, 240), TRUE);
-    top += pane_scale(window, 44);
-    int symbol_size = pane_scale(window, 44), symbol_gap = pane_scale(window, 4);
-    int symbol_columns = max(1, (client.right - margin * 2) / (symbol_size + symbol_gap));
-    for (size_t index = 0; index < pane->symbols.size(); index++)
-        MoveWindow(pane->symbols[index], margin + static_cast<int>(index % symbol_columns) * (symbol_size + symbol_gap),
-            top + static_cast<int>(index / symbol_columns) * (symbol_size + symbol_gap) - pane->offset, symbol_size, symbol_size, TRUE);
-    pane->height = top + static_cast<int>((pane->symbols.size() + symbol_columns - 1) / symbol_columns) * (symbol_size + symbol_gap) + margin;
+    pane->height = top + margin;
     SCROLLINFO scroll = { sizeof(scroll), SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL };
     scroll.nMax = max(0, pane->height - 1);
     scroll.nPage = client.bottom;
@@ -319,11 +568,6 @@ static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, L
         SetWindowLongPtr(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pane));
         pane->information = pane_control(window, L"STATIC", L"", SS_LEFT, 100);
         pane->status = pane_control(window, L"STATIC", L"", SS_LEFT, 101);
-        pane->categories = pane_control(window, WC_COMBOBOX, L"", CBS_DROPDOWNLIST | WS_TABSTOP, 102);
-        const wchar_t *names[] = { L"Common Symbols", L"Arrows", L"Mathematics", L"Currency", L"Greek", L"Box Drawing" };
-        for (auto name : names) SendMessage(pane->categories, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(name));
-        SendMessage(pane->categories, CB_SETCURSEL, 0, 0);
-        pane_symbols(window, pane);
         return 0;
     }
     if (!pane) return DefWindowProc(window, message, parameter, data);
@@ -352,11 +596,7 @@ static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, L
     }
     case WM_COMMAND: {
         int identifier = LOWORD(parameter);
-        if (identifier == 102 && HIWORD(parameter) == CBN_SELCHANGE) {
-            pane->category = static_cast<int>(SendMessage(pane->categories, CB_GETCURSEL, 0, 0));
-            pane_symbols(window, pane);
-            pane_layout(window, pane);
-        } else if (identifier >= 1000 && identifier < 1000 + static_cast<int>(pane->tiles.size())) {
+        if (identifier >= 1000 && identifier < 1000 + static_cast<int>(pane->tiles.size())) {
             FormatTile &tile = pane->tiles[identifier - 1000];
             if (tile.handler < 0) SendMessage(GetParent(window), WM_PASTEPLUS_PASTE, 0, reinterpret_cast<LPARAM>(tile.format));
             else {
@@ -370,9 +610,6 @@ static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, L
                 SetWindowText(pane->status, result ? L"" : error.c_str());
                 if (result) pane_text_paste(window, output);
             }
-        } else if (identifier >= 2000 && identifier < 2000 + static_cast<int>(pane->symbols.size())) {
-            wchar_t symbol[] = { symbol_sets[pane->category][identifier - 2000], 0 };
-            pane_text_paste(window, symbol);
         }
         return 0;
     }
@@ -463,6 +700,19 @@ extern "C" HWND pasteplus_create(HINSTANCE instance, HWND owner, int identifier)
     descriptor.hInstance = instance;
     descriptor.lpfnWndProc = pane_proc;
     descriptor.lpszClassName = L"ClipMasterPastePlus";
+    descriptor.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    descriptor.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
+    if (!RegisterClass(&descriptor) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return nullptr;
+    return CreateWindowEx(WS_EX_CONTROLPARENT, descriptor.lpszClassName, L"", WS_CHILD | WS_VSCROLL | WS_CLIPCHILDREN,
+        0, 0, 0, 0, owner, reinterpret_cast<HMENU>(static_cast<INT_PTR>(identifier)), instance, nullptr);
+}
+
+extern "C" HWND pasteplus_symbols_create(HINSTANCE instance, HWND owner, int identifier)
+{
+    WNDCLASS descriptor = {};
+    descriptor.hInstance = instance;
+    descriptor.lpfnWndProc = symbols_proc;
+    descriptor.lpszClassName = L"ClipMasterSymbols";
     descriptor.hCursor = LoadCursor(nullptr, IDC_ARROW);
     descriptor.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
     if (!RegisterClass(&descriptor) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return nullptr;

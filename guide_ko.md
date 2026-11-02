@@ -25,7 +25,8 @@ ClipMaster는 Windows 10/11 x64에서 사용할 수 있습니다.
 | --- | --- |
 | ClipManager | 복사 이력을 날짜와 미리보기로 확인하고, 검색·붙여넣기·즐겨찾기 추가를 합니다. |
 | FavoriteClips | 자주 쓰는 문구와 이미지를 등록·편집·삭제하고 붙여넣습니다. |
-| PastePlus | 최근 클립의 붙여넣기 형식을 선택하거나 특수문자를 입력합니다. |
+| PastePlus | 최근 클립에서 붙여넣을 형식을 선택하고 변환 항목을 실행합니다. |
+| Symbols | 기호, 화살표, 수학·통화·그리스 문자와 박스 문자를 선택합니다. |
 | ClipSample | 예제 클립으로 미리보기와 즐겨찾기 사용을 연습합니다. |
 | Setting | 이력, 기록 대상, 단축키, 자동 실행과 화면 설정을 관리합니다. |
 
@@ -58,7 +59,13 @@ ClipMaster는 Windows 10/11 x64에서 사용할 수 있습니다.
 
 먼저 붙여넣을 입력 위치를 선택한 뒤 PastePlus를 엽니다. 일반 텍스트로 붙여넣으려면 `UNICODE TEXT` 같은 텍스트 형식을 선택하고, 다른 형식은 미리보기를 확인한 뒤 대상 프로그램이 지원하는 항목을 선택합니다.
 
-특수문자는 기호, 화살표, 수학, 통화, 그리스 문자, 박스 문자 분류에서 선택할 수 있습니다. 등록된 변환 항목이 있다면 해당 항목을 선택해 변환된 내용을 붙여넣을 수 있습니다.
+등록된 변환 항목이 있다면 해당 항목을 선택해 변환된 내용을 붙여넣을 수 있습니다.
+
+### Symbols
+
+기호는 Common Symbols, Arrows, Mathematics, Currency, Greek, Box Drawing 분류별로 모두 펼쳐 표시됩니다. 목록을 스크롤해 원하는 기호를 선택하면 현재 입력 위치에 붙여넣습니다.
+
+목록 아래 `Open Character Map (default Wingdings)` 버튼은 Windows 문자표를 엽니다. Wingdings를 사용할 수 있으면 해당 글꼴을 자동 선택합니다.
 
 ### ClipSample
 
@@ -76,7 +83,7 @@ Setting에서 이력의 최대 개수와 보관 일수, 중복 클립 처리, �
 | --- | --- |
 | `Alt+Space` | ClipManager 열기 |
 | `CapsLock+F` | FavoriteClips 열기 |
-| `CapsLock+V` | PastePlus에서 붙여넣기 형식 또는 특수문자 선택 |
+| `CapsLock+V` | PastePlus에서 붙여넣기 형식 선택 |
 
 단축키를 변경했다면 Setting에서 현재 조합을 확인하세요. CapsLock 조합은 키보드 재매핑 도구나 다른 단축키와 충돌할 수 있습니다.
 
