@@ -17,6 +17,8 @@ are not executable packages.
 
 ## Usage
 
+For a detailed Korean walkthrough, see the [ClipMaster user guide](guide_ko.md).
+
 - Copy text, images or files as usual.
 - Press `Alt+Space` to open clipboard history and select a clip to paste.
 - Press `CapsLock+F` to open favorites.
