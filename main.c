@@ -109,6 +109,7 @@ static int menu_sel_top;
 
 static BOOL accel_flag = TRUE;
 static BOOL clip_flag;
+static BOOL suppress_clip_history;
 static BOOL session_ending = FALSE;
 static int rechain_cnt;
 
@@ -1225,6 +1226,30 @@ static BOOL item_to_clipboard(const HWND hWnd, DATA_INFO *from_di, const BOOL de
 	return TRUE;
 }
 
+static BOOL item_to_clipboard_exact(const HWND hWnd, DATA_INFO *from_di)
+{
+	DATA_INFO *copy;
+	TCHAR err_str[BUF_SIZE] = TEXT("");
+	BOOL previous_suppression, copied;
+	if ((copy = data_item_copy(from_di, FALSE, FALSE, err_str)) == NULL) {
+		if (*err_str != TEXT('\0')) {
+			_SetForegroundWindow(hWnd);
+			MessageBox(hWnd, err_str, ERROR_TITLE, MB_OK | MB_ICONERROR);
+		}
+		return FALSE;
+	}
+	previous_suppression = suppress_clip_history;
+	suppress_clip_history = TRUE;
+	copied = clipboard_set_datainfo(hWnd, copy, err_str);
+	suppress_clip_history = previous_suppression;
+	data_free(copy);
+	if (!copied && *err_str) {
+		_SetForegroundWindow(hWnd);
+		MessageBox(hWnd, err_str, ERROR_TITLE, MB_OK | MB_ICONERROR);
+	}
+	return copied;
+}
+
 /*
  * load_history - 履歴の読み込み
  */
@@ -1899,7 +1924,7 @@ static LRESULT CALLBACK main_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 		if (hClipNextWnd != NULL && hClipNextWnd != hWnd) {
 			SendMessage(hClipNextWnd, msg, wParam, lParam);
 		}
-		if (clip_flag == TRUE) {
+		if (clip_flag == TRUE || suppress_clip_history == TRUE) {
 			// 履歴に入れない
 			break;
 		}
@@ -2359,6 +2384,9 @@ static LRESULT CALLBACK main_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 			return FALSE;
 		}
 		return item_to_clipboard(hWnd, (DATA_INFO *)lParam, (wParam == 0) ? TRUE : FALSE);
+
+	case WM_ITEM_TO_CLIPBOARD_EXACT:
+		return lParam != 0 ? item_to_clipboard_exact(hWnd, (DATA_INFO *)lParam) : FALSE;
 
 	case WM_ITEM_CREATE:
 		// アイテムの作成

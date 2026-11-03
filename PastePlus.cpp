@@ -28,7 +28,8 @@ struct FormatTile {
     DATA_INFO *format;
     int handler;
     HWND window;
-    std::vector<BYTE> bytes;
+    DWORD byte_size;
+    ULONGLONG byte_hash;
 };
 
 struct PastePane {
@@ -69,8 +70,158 @@ struct CharacterMapFontSearch {
 
 static int pane_scale(HWND window, int value) { return MulDiv(value, GetDpiForWindow(window), 96); }
 
-static std::wstring format_text(DATA_INFO *format)
+static ULONGLONG bytes_hash(const std::vector<BYTE> &bytes)
 {
+    ULONGLONG hash = 14695981039346656037ULL;
+    for (BYTE value : bytes) { hash ^= value; hash *= 1099511628211ULL; }
+    return hash;
+}
+
+static bool decode_multibyte(const BYTE *bytes, DWORD size, UINT codepage, DWORD flags, std::wstring &text)
+{
+    int characters = MultiByteToWideChar(codepage, flags, reinterpret_cast<const char *>(bytes), static_cast<int>(size), nullptr, 0);
+    if (!characters) return false;
+    text.resize(characters);
+    return MultiByteToWideChar(codepage, flags, reinterpret_cast<const char *>(bytes), static_cast<int>(size), &text[0], characters) != 0;
+}
+
+static bool decode_utf16(const BYTE *bytes, DWORD size, std::wstring &text)
+{
+    if (size < 4) return false;
+    DWORD offset = 0;
+    bool big_endian = false;
+    if (bytes[0] == 0xFF && bytes[1] == 0xFE) offset = 2;
+    else if (bytes[0] == 0xFE && bytes[1] == 0xFF) { offset = 2; big_endian = true; }
+    else {
+        DWORD pairs = size / 2, even_zeroes = 0, odd_zeroes = 0;
+        for (DWORD index = 0; index < pairs; index++) {
+            even_zeroes += bytes[index * 2] == 0;
+            odd_zeroes += bytes[index * 2 + 1] == 0;
+        }
+        if (max(even_zeroes, odd_zeroes) * 5 < pairs * 3) return false;
+        big_endian = even_zeroes > odd_zeroes;
+    }
+    DWORD characters = min((size - offset) / 2, 32768UL);
+    text.clear();
+    text.reserve(characters);
+    for (DWORD index = 0; index < characters; index++) {
+        BYTE first = bytes[offset + index * 2], second = bytes[offset + index * 2 + 1];
+        wchar_t character = static_cast<wchar_t>(big_endian ? (first << 8) | second : first | (second << 8));
+        if (!character) break;
+        text.push_back(character);
+    }
+    return !text.empty();
+}
+
+static bool readable_text(const std::wstring &text)
+{
+    if (text.empty()) return false;
+    size_t printable = 0;
+    for (wchar_t character : text) {
+        if (character == L'\r' || character == L'\n' || character == L'\t' ||
+            (character >= 0x20 && (character < 0x7F || character > 0x9F))) printable++;
+    }
+    return printable * 5 >= text.size() * 4;
+}
+
+static std::wstring escape_controls(const std::wstring &text)
+{
+    std::wstring result;
+    wchar_t value[8];
+    for (wchar_t character : text) {
+        if (character == L'\r' || character == L'\n' || character == L'\t' ||
+            (character >= 0x20 && (character < 0x7F || character > 0x9F))) result += character;
+        else {
+            wsprintf(value, character <= 0xFF ? L"\\x%02X" : L"\\u%04X", static_cast<unsigned int>(character));
+            result += value;
+        }
+    }
+    return result;
+}
+
+static bool format_is_text(DATA_INFO *format)
+{
+    return format->format == CF_TEXT || format->format == CF_UNICODETEXT ||
+        format->format == CF_OEMTEXT || format->format == CF_HDROP ||
+        (format->format_name && (StrStrI(format->format_name, L"text") ||
+         StrStrI(format->format_name, L"html") || StrStrI(format->format_name, L"rtf") ||
+         StrStrI(format->format_name, L"rich") || StrStrI(format->format_name, L"csv") ||
+         StrStrI(format->format_name, L"json") || StrStrI(format->format_name, L"xml") ||
+         StrStrI(format->format_name, L"url") || StrStrI(format->format_name, L"uri") ||
+         StrStrI(format->format_name, L"svg") || StrStrI(format->format_name, L"markdown")));
+}
+
+static bool format_is_unavailable(DATA_INFO *format)
+{
+    return !format->data || format->format == CF_LOCALE || format->format == CF_PALETTE ||
+        format->format == CF_OWNERDISPLAY ||
+        (format->format >= CF_DSPTEXT && format->format <= CF_DSPENHMETAFILE) ||
+        (format->format >= CF_PRIVATEFIRST && format->format <= CF_PRIVATELAST) ||
+        (format->format_name && (StrStrI(format->format_name, L"Ole Private") ||
+         StrStrI(format->format_name, L"DataObject") || StrStrI(format->format_name, L"DropEffect") ||
+         !lstrcmpi(format->format_name, L"OleClipboardPersistOnFlush") ||
+         !lstrcmpi(format->format_name, L"OneNote 2010 Internal")));
+}
+
+static bool target_matches(const wchar_t *targets, DATA_INFO *format);
+
+static bool format_has_handler(DATA_INFO *format)
+{
+    for (int index = 0; index < option.config_handler_count; index++)
+        if (*option.config_handlers[index].formats && *option.config_handlers[index].script &&
+            target_matches(option.config_handlers[index].formats, format)) return true;
+    return false;
+}
+
+static std::wstring format_text(DATA_INFO *format, const std::vector<BYTE> *cached_bytes = nullptr,
+    bool raw_binary = false)
+{
+    wchar_t image[128];
+    if (!raw_binary && format->format == CF_BITMAP && format->data) {
+        BITMAP bitmap;
+        if (GetObject(format->data, sizeof(bitmap), &bitmap)) {
+            wsprintf(image, L"Bitmap: %ld x %ld, %u bpp", bitmap.bmWidth, bitmap.bmHeight, bitmap.bmBitsPixel);
+            return image;
+        }
+    }
+    if (!raw_binary && (format->format == CF_DIB || format->format == CF_DIBV5) && format->data) {
+        BYTE *dib = static_cast<BYTE *>(GlobalLock(format->data));
+        if (dib) {
+            DWORD available = min(GlobalSize(format->data), format->size);
+            if (available >= sizeof(BITMAPINFOHEADER)) {
+                BITMAPINFOHEADER *header = reinterpret_cast<BITMAPINFOHEADER *>(dib);
+                if (header->biSize >= sizeof(BITMAPINFOHEADER) && header->biSize <= available) {
+                    wsprintf(image, L"DIB: %ld x %ld, %u bpp", header->biWidth,
+                        header->biHeight < 0 ? -header->biHeight : header->biHeight, header->biBitCount);
+                    GlobalUnlock(format->data);
+                    return image;
+                }
+            }
+            GlobalUnlock(format->data);
+        }
+    }
+    if (!raw_binary && format->format == CF_ENHMETAFILE && format->data) {
+        ENHMETAHEADER header = {};
+        if (GetEnhMetaFileHeader(static_cast<HENHMETAFILE>(format->data), sizeof(header), &header)) {
+            wsprintf(image, L"Enhanced metafile: %ld x %ld, %u bytes",
+                header.rclBounds.right - header.rclBounds.left, header.rclBounds.bottom - header.rclBounds.top,
+                GetEnhMetaFileBits(static_cast<HENHMETAFILE>(format->data), 0, nullptr));
+            return image;
+        }
+    }
+    if (!raw_binary && format->format == CF_METAFILEPICT && format->data) {
+        METAFILEPICT *picture = static_cast<METAFILEPICT *>(GlobalLock(format->data));
+        if (picture) {
+            wsprintf(image, L"Metafile picture: %ld x %ld, %u bytes", picture->xExt, picture->yExt,
+                GetMetaFileBitsEx(picture->hMF, 0, nullptr));
+            GlobalUnlock(format->data);
+            return image;
+        }
+    }
+    if (!raw_binary && !format_is_text(format)) {
+        wsprintf(image, L"Binary data: %u bytes", format->size);
+        return image;
+    }
     if (format->format == CF_UNICODETEXT && format->data) {
         const wchar_t *text = static_cast<const wchar_t *>(GlobalLock(format->data));
         if (text) {
@@ -92,28 +243,54 @@ static std::wstring format_text(DATA_INFO *format)
         return result;
     }
     DWORD size = 0;
-    BYTE *bytes = format_data_to_bytes(format, &size);
-    if (!bytes) bytes = clipboard_data_to_bytes(format, &size);
+    BYTE *allocated = nullptr;
+    const BYTE *bytes = nullptr;
+    if (cached_bytes && !cached_bytes->empty()) {
+        bytes = cached_bytes->data();
+        size = static_cast<DWORD>(cached_bytes->size());
+    } else {
+        allocated = format_data_to_bytes(format, &size);
+        if (!allocated) allocated = clipboard_data_to_bytes(format, &size);
+        bytes = allocated;
+    }
     if (!bytes) return L"";
     std::wstring result;
-    if (format->format == CF_TEXT || format->format == CF_OEMTEXT ||
-        (format->format_name && (StrStrI(format->format_name, L"text") || StrStrI(format->format_name, L"html")))) {
-        int length = 0;
-        while (length < static_cast<int>(min(size, 65536UL)) && bytes[length]) length++;
-        UINT codepage = format->format == CF_OEMTEXT ? CP_OEMCP : CP_ACP;
-        int characters = MultiByteToWideChar(codepage, 0, reinterpret_cast<char *>(bytes), length, nullptr, 0);
-        if (characters) {
-            result.resize(characters);
-            MultiByteToWideChar(codepage, 0, reinterpret_cast<char *>(bytes), length, &result[0], characters);
-        }
-    } else {
+    if (raw_binary && !format_is_text(format)) {
         wchar_t value[8];
-        for (DWORD index = 0; index < min(size, 2048UL); index++) {
+        DWORD display_size = min(size, 2048UL);
+        for (DWORD index = 0; index < display_size; index++) {
             wsprintf(value, L"%02X%s", bytes[index], (index + 1) % 16 ? L" " : L"\r\n");
             result += value;
         }
+        if (size > display_size) result += L"\r\n[truncated]";
+        mem_free(reinterpret_cast<void **>(&allocated));
+        return result;
     }
-    mem_free(reinterpret_cast<void **>(&bytes));
+    DWORD length = min(size, 65536UL);
+    while (length && bytes[length - 1] == 0) length--;
+    std::wstring decoded;
+    bool named_text = format->format_name && (StrStrI(format->format_name, L"text") ||
+        StrStrI(format->format_name, L"html") || StrStrI(format->format_name, L"rtf") ||
+        StrStrI(format->format_name, L"rich") || StrStrI(format->format_name, L"csv") ||
+        StrStrI(format->format_name, L"json") || StrStrI(format->format_name, L"xml") ||
+        StrStrI(format->format_name, L"url") || StrStrI(format->format_name, L"uri") ||
+        StrStrI(format->format_name, L"svg") || StrStrI(format->format_name, L"markdown"));
+    bool standard_text = format->format == CF_TEXT || format->format == CF_OEMTEXT;
+    bool utf16 = decode_utf16(bytes, length, decoded);
+    if (!utf16 && length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+        decode_multibyte(bytes + 3, length - 3, CP_UTF8, MB_ERR_INVALID_CHARS, decoded);
+    if (decoded.empty() && !standard_text && !utf16)
+        decode_multibyte(bytes, length, CP_UTF8, MB_ERR_INVALID_CHARS, decoded);
+    UINT codepage = format->format == CF_OEMTEXT ? CP_OEMCP : CP_ACP;
+    if (decoded.empty() && length) decode_multibyte(bytes, length, codepage, 0, decoded);
+    if (named_text || readable_text(decoded)) {
+        result = escape_controls(decoded);
+        if (size > length && length == 65536) result += L"\r\n[truncated]";
+    } else {
+        wsprintf(image, L"Binary data: %u bytes", size);
+        result = image;
+    }
+    mem_free(reinterpret_cast<void **>(&allocated));
     return result;
 }
 
@@ -605,7 +782,7 @@ static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, L
                 UpdateWindow(pane->status);
                 HCURSOR previous = SetCursor(LoadCursor(nullptr, IDC_WAIT));
                 bool result = powershell_transform(option.config_handlers[tile.handler].pattern,
-                    option.config_handlers[tile.handler].script, format_text(tile.format), output, error);
+                    option.config_handlers[tile.handler].script, format_text(tile.format, nullptr, true), output, error);
                 SetCursor(previous);
                 SetWindowText(pane->status, result ? L"" : error.c_str());
                 if (result) pane_text_paste(window, output);
@@ -622,7 +799,8 @@ static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, L
     return DefWindowProc(window, message, parameter, data);
 }
 
-static void pane_add_tile(HWND window, PastePane *pane, DATA_INFO *format, int handler, std::vector<BYTE> bytes)
+static void pane_add_tile(HWND window, PastePane *pane, DATA_INFO *format, int handler,
+    const std::vector<BYTE> &bytes)
 {
     int identifier = 1000 + static_cast<int>(pane->tiles.size());
     HWND tile = pane_control(window, L"STATIC", L"", WS_BORDER | WS_CLIPCHILDREN, identifier);
@@ -630,11 +808,11 @@ static void pane_add_tile(HWND window, PastePane *pane, DATA_INFO *format, int h
     if (handler >= 0) wsprintf(title, L"PH%d - %s", handler + 1, format->format_name);
     else lstrcpyn(title, format->format_name ? format->format_name : L"Format", ARRAYSIZE(title));
     HWND label = pane_control(tile, L"STATIC", title, SS_LEFT, 1);
-    HWND preview = pane_control(tile, L"EDIT", format_text(format).c_str(),
+    HWND preview = pane_control(tile, L"EDIT", format_text(format, &bytes).c_str(),
         ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP, 2);
     SetWindowSubclass(label, format_tile_proc, 1, reinterpret_cast<DWORD_PTR>(window));
     SetWindowSubclass(preview, format_tile_proc, 1, reinterpret_cast<DWORD_PTR>(window));
-    FormatTile entry = { format, handler, tile, std::move(bytes) };
+    FormatTile entry = { format, handler, tile, static_cast<DWORD>(bytes.size()), bytes.empty() ? 0 : bytes_hash(bytes) };
     pane->tiles.push_back(std::move(entry));
 }
 
@@ -643,18 +821,33 @@ extern "C" void pasteplus_refresh(HWND window, DATA_INFO *item)
     PastePane *pane = reinterpret_cast<PastePane *>(GetWindowLongPtr(window, GWLP_USERDATA));
     if (!pane) return;
     pane_clear(pane);
-    pane->snapshot = item ? data_item_copy(item, FALSE, FALSE, nullptr) : nullptr;
+    pane->snapshot = item ? data_create_item(item->title, FALSE, nullptr) : nullptr;
+    if (pane->snapshot) {
+        pane->snapshot->modified = item->modified;
+        DATA_INFO **tail = &pane->snapshot->child;
+        for (DATA_INFO *source = item->child; source; source = source->next) {
+            if (format_is_unavailable(source) && !format_has_handler(source)) continue;
+            DATA_INFO *copy = data_item_copy(source, FALSE, FALSE, nullptr);
+            if (!copy) continue;
+            *tail = copy;
+            tail = &copy->next;
+        }
+    }
     int total = 0, duplicate = 0, unavailable = 0, pasteable = 0;
     if (pane->snapshot) {
         for (DATA_INFO *format = pane->snapshot->child; format; format = format->next) {
             total++;
             if (option.config_force_unicode && (format->format == CF_TEXT || format->format == CF_OEMTEXT)) { duplicate++; continue; }
-            if (!format->data || format->format == CF_LOCALE || format->format == CF_OWNERDISPLAY ||
-                (format->format >= CF_DSPTEXT && format->format <= CF_DSPENHMETAFILE) ||
-                (format->format >= CF_PRIVATEFIRST && format->format <= CF_PRIVATELAST) ||
-                (format->format_name && (StrStrI(format->format_name, L"Ole Private") ||
-                 StrStrI(format->format_name, L"DataObject") || StrStrI(format->format_name, L"DropEffect")))) {
+            if (format_is_unavailable(format)) {
                 unavailable++;
+                continue;
+            }
+            bool graphic = format->format == CF_BITMAP || format->format == CF_DIB || format->format == CF_DIBV5 ||
+                format->format == CF_ENHMETAFILE || format->format == CF_METAFILEPICT;
+            bool text = format_is_text(format);
+            if (graphic || !text) {
+                pane_add_tile(window, pane, format, -1, {});
+                pasteable++;
                 continue;
             }
             DWORD size = 0;
@@ -663,11 +856,12 @@ extern "C" void pasteplus_refresh(HWND window, DATA_INFO *item)
             std::vector<BYTE> bytes;
             if (raw && size) bytes.assign(raw, raw + size);
             mem_free(reinterpret_cast<void **>(&raw));
+            ULONGLONG hash = bytes.empty() ? 0 : bytes_hash(bytes);
             bool same = false;
             if (!bytes.empty()) for (auto &previous : pane->tiles)
-                if (previous.handler < 0 && previous.bytes == bytes) { same = true; break; }
+                if (previous.handler < 0 && previous.byte_size == bytes.size() && previous.byte_hash == hash) { same = true; break; }
             if (same) { duplicate++; continue; }
-            pane_add_tile(window, pane, format, -1, std::move(bytes));
+            pane_add_tile(window, pane, format, -1, bytes);
             pasteable++;
         }
         for (int index = 0; index < option.config_handler_count; index++) {

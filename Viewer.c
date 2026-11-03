@@ -2848,27 +2848,43 @@ static void viewer_set_paste_target(HWND target)
 static BOOL viewer_paste_clip(HWND window, DATA_INFO *item, BOOL exact)
 {
 	BOOL copied;
+	HWND target = paste_target;
+	DWORD process = 0;
 	if (exact) {
-		TCHAR error[BUF_SIZE] = TEXT("");
-		DATA_INFO *copy = data_item_copy(item, FALSE, FALSE, error);
-		if (copy == NULL) return FALSE;
-		copied = clipboard_set_datainfo(window, copy, error);
-		data_free(copy);
-		if (!copied && *error) MessageBox(window, error, ERROR_TITLE, MB_OK | MB_ICONERROR);
+		copied = (BOOL)SendMessage(main_wnd, WM_ITEM_TO_CLIPBOARD_EXACT, 0, (LPARAM)item);
 	} else copied = (BOOL)SendMessage(main_wnd, WM_ITEM_TO_CLIPBOARD, 1, (LPARAM)item);
 	if (!copied) return FALSE;
+	if (!IsWindow(target) || GetWindowThreadProcessId(target, &process) == 0 || process == GetCurrentProcessId())
+		target = NULL;
 	ShowWindow(window, SW_HIDE);
-	if (IsWindow(paste_target)) {
-		DWORD thread = GetWindowThreadProcessId(paste_target, NULL);
-		_SetForegroundWindow(paste_target);
-		if (IsWindow(paste_focus) && (paste_focus == paste_target || IsChild(paste_target, paste_focus))) {
+	if (target == NULL) {
+		target = GetForegroundWindow();
+		if (GetWindowThreadProcessId(target, &process) == 0 || process == GetCurrentProcessId()) target = NULL;
+		else viewer_set_paste_target(target);
+	}
+	if (target == NULL) {
+		ShowWindow(window, SW_SHOW);
+		_SetForegroundWindow(window);
+		MessageBox(window, TEXT("No target application is available for pasting."), ERROR_TITLE, MB_OK | MB_ICONWARNING);
+		return FALSE;
+	}
+	{
+		DWORD thread = GetWindowThreadProcessId(target, NULL);
+		_SetForegroundWindow(target);
+		if (IsWindow(paste_focus) && (paste_focus == target || IsChild(target, paste_focus))) {
 			BOOL attached = AttachThreadInput(GetCurrentThreadId(), thread, TRUE);
 			if (attached) { SetFocus(paste_focus); AttachThreadInput(GetCurrentThreadId(), thread, FALSE); }
 		}
-		if (GetForegroundWindow() == paste_target) {
+		if (GetForegroundWindow() == target) {
 			SendMessage(main_wnd, WM_UNREGIST_HOTKEY, 0, 0);
-			sendkey_paste(paste_target);
+			sendkey_paste(target);
 			SendMessage(main_wnd, WM_REGIST_HOTKEY, 0, 0);
+		} else {
+			ShowWindow(window, SW_SHOW);
+			_SetForegroundWindow(window);
+			MessageBox(window, TEXT("Could not activate the target application. Clipboard contents were updated but not pasted."),
+				ERROR_TITLE, MB_OK | MB_ICONWARNING);
+			return FALSE;
 		}
 	}
 	return TRUE;
