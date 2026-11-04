@@ -61,6 +61,12 @@
     <IntDir>.\Release\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
+  <ItemDefinitionGroup>
+    <Link>
+      <DelayLoadDLLs>api-ms-win-core-winrt-l1-1-0.dll;api-ms-win-core-winrt-error-l1-1-1.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalDependencies>delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -190,7 +196,10 @@
     <ClCompile Include="TileView.c" />
     <ClCompile Include="ClipSample.c" />
     <ClCompile Include="ClipEdit.c" />
-    <ClCompile Include="PastePlus.cpp" />
+    <ClCompile Include="PastePlus.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(WindowsSdkDir)Include\$(WindowsTargetPlatformVersion)\cppwinrt;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="Hotkey.c" />
     <ClCompile Include="Config.c" />
     <ClCompile Include="Viewer.c" />

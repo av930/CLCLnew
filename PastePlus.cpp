@@ -6,10 +6,20 @@
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <tchar.h>
+#include <wincodec.h>
 #include <wincrypt.h>
 #include <string>
+#include <thread>
 #include <vector>
 #include <new>
+#include <wrl/client.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Graphics.Imaging.h>
+#include <winrt/Windows.Globalization.h>
+#include <winrt/Windows.Media.Ocr.h>
+#include <winrt/Windows.Security.Cryptography.h>
+#include <winrt/Windows.Storage.Streams.h>
+#include <winrt/base.h>
 extern "C" {
 #include "General.h"
 #include "Memory.h"
@@ -23,11 +33,16 @@ extern OPTION_INFO option;
 }
 #include "PastePlus.h"
 #pragma comment(lib, "Crypt32.lib")
+#pragma comment(lib, "delayimp.lib")
+#pragma comment(lib, "windowsapp.lib")
+#pragma comment(lib, "windowscodecs.lib")
 
 struct FormatTile {
     DATA_INFO *format;
     int handler;
     HWND window;
+    HWND preview;
+    HBITMAP image;
     DWORD byte_size;
     ULONGLONG byte_hash;
 };
@@ -37,9 +52,16 @@ struct PastePane {
     std::vector<FormatTile> tiles;
     HWND information = nullptr;
     HWND status = nullptr;
+    HWND extract_text = nullptr;
     int offset = 0;
     int height = 0;
     bool layout = false;
+    bool ocr_running = false;
+};
+
+struct OcrCompletion {
+    std::wstring text;
+    std::wstring error;
 };
 
 struct SymbolButton {
@@ -67,6 +89,10 @@ struct CharacterMapFontSearch {
     LPVOID font_name = nullptr;
     int index = CB_ERR;
 };
+
+static bool format_is_ocr_image(DATA_INFO *format);
+static void extract_text_worker(HWND window, DATA_INFO *image);
+static HBITMAP create_image_preview(DATA_INFO *format, UINT max_width, UINT max_height);
 
 static int pane_scale(HWND window, int value) { return MulDiv(value, GetDpiForWindow(window), 96); }
 
@@ -409,7 +435,10 @@ static bool target_matches(const wchar_t *targets, DATA_INFO *format)
 
 static void pane_clear(PastePane *pane)
 {
-    for (auto &tile : pane->tiles) DestroyWindow(tile.window);
+    for (auto &tile : pane->tiles) {
+        DestroyWindow(tile.window);
+        if (tile.image) DeleteObject(tile.image);
+    }
     pane->tiles.clear();
     data_free(pane->snapshot);
     pane->snapshot = nullptr;
@@ -696,21 +725,27 @@ static void pane_layout(HWND window, PastePane *pane)
     pane->layout = true;
     RECT client;
     GetClientRect(window, &client);
-    int margin = pane_scale(window, 12), gap = pane_scale(window, 12), size = pane_scale(window, 384);
+    int margin = pane_scale(window, 12), gap = pane_scale(window, 12), size = pane_scale(window, 256);
     int width = max(1, min(size, client.right - margin * 2));
     int columns = max(1, (client.right - margin * 2 + gap) / (size + gap));
-    MoveWindow(pane->information, margin, margin - pane->offset, max(1, client.right - margin * 2), pane_scale(window, 48), TRUE);
-    MoveWindow(pane->status, margin, pane_scale(window, 64) - pane->offset, max(1, client.right - margin * 2), pane_scale(window, 36), TRUE);
+    int available = max(1, client.right - margin * 2);
+    int button_width = min(pane_scale(window, 148), available);
+    int button_height = pane_scale(window, 36);
+    int information_top = margin + button_height + gap;
+    int status_top = information_top + pane_scale(window, 44) + gap;
+    int tiles_top = status_top + pane_scale(window, 32) + gap;
+    MoveWindow(pane->extract_text, margin, margin, button_width, button_height, TRUE);
+    MoveWindow(pane->information, margin, information_top, available, pane_scale(window, 44), TRUE);
+    MoveWindow(pane->status, margin, status_top, available, pane_scale(window, 32), TRUE);
     for (size_t index = 0; index < pane->tiles.size(); index++) {
         int left = margin + static_cast<int>(index % columns) * (size + gap);
-        int top = pane_scale(window, 108) + static_cast<int>(index / columns) * (size + gap) - pane->offset;
+        int top = tiles_top + static_cast<int>(index / columns) * (size + gap) - pane->offset;
         HWND tile = pane->tiles[index].window;
         MoveWindow(tile, left, top, width, size, TRUE);
         MoveWindow(GetDlgItem(tile, 1), pane_scale(window, 8), pane_scale(window, 8), width - pane_scale(window, 16), pane_scale(window, 28), TRUE);
         MoveWindow(GetDlgItem(tile, 2), pane_scale(window, 8), pane_scale(window, 44), width - pane_scale(window, 16), size - pane_scale(window, 56), TRUE);
     }
-    int top = pane_scale(window, 120) + static_cast<int>((pane->tiles.size() + columns - 1) / columns) * (size + gap);
-    pane->height = top + margin;
+    pane->height = tiles_top + static_cast<int>((pane->tiles.size() + columns - 1) / columns) * (size + gap) + margin;
     SCROLLINFO scroll = { sizeof(scroll), SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL };
     scroll.nMax = max(0, pane->height - 1);
     scroll.nPage = client.bottom;
@@ -736,6 +771,62 @@ static void pane_text_paste(HWND window, const std::wstring &text)
     data_free(format);
 }
 
+static bool pane_text_copy(HWND window, const std::wstring &text)
+{
+    if (text.empty()) return false;
+    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, (text.size() + 1) * sizeof(wchar_t));
+    void *destination = memory ? GlobalLock(memory) : nullptr;
+    if (!destination) { if (memory) GlobalFree(memory); return false; }
+    CopyMemory(destination, text.c_str(), (text.size() + 1) * sizeof(wchar_t));
+    GlobalUnlock(memory);
+    DATA_INFO *format = data_create_data(CF_UNICODETEXT, const_cast<wchar_t *>(L"UNICODE TEXT"), memory,
+        static_cast<DWORD>((text.size() + 1) * sizeof(wchar_t)), FALSE, nullptr);
+    if (!format) { GlobalFree(memory); return false; }
+    bool copied = SendMessage(GetParent(window), WM_PASTEPLUS_COPY, 0, reinterpret_cast<LPARAM>(format)) != FALSE;
+    data_free(format);
+    return copied;
+}
+
+static void pane_extract_text(HWND window, PastePane *pane)
+{
+    DATA_INFO *format = nullptr;
+    if (pane->snapshot) for (DATA_INFO *item = pane->snapshot->child; item; item = item->next)
+        if (format_is_ocr_image(item)) { format = item; break; }
+    if (!format) { SetWindowText(pane->status, L"No image is available in this clip."); return; }
+    DATA_INFO *image = data_item_copy(format, FALSE, FALSE, nullptr);
+    if (!image) { SetWindowText(pane->status, L"Could not prepare the image for OCR."); return; }
+    pane->ocr_running = true;
+    EnableWindow(pane->extract_text, FALSE);
+    SetWindowText(pane->status, L"Recognizing text...");
+    try { std::thread(extract_text_worker, window, image).detach(); }
+    catch (...) {
+        pane->ocr_running = false;
+        EnableWindow(pane->extract_text, TRUE);
+        data_free(image);
+        SetWindowText(pane->status, L"Could not start OCR.");
+    }
+}
+
+static void pane_paste_image(HWND window, PastePane *pane, DATA_INFO *selected)
+{
+    DATA_INFO *item = data_create_item(nullptr, FALSE, nullptr);
+    if (!item) {
+        SendMessage(GetParent(window), WM_PASTEPLUS_PASTE, 0, reinterpret_cast<LPARAM>(selected));
+        return;
+    }
+    DATA_INFO **tail = &item->child;
+    if (pane->snapshot) for (DATA_INFO *format = pane->snapshot->child; format; format = format->next) {
+        if (!format_is_ocr_image(format) && format->format != CF_PALETTE) continue;
+        DATA_INFO *copy = data_item_copy(format, FALSE, FALSE, nullptr);
+        if (!copy) continue;
+        *tail = copy;
+        tail = &copy->next;
+    }
+    if (item->child) SendMessage(GetParent(window), WM_PASTEPLUS_PASTE, 0, reinterpret_cast<LPARAM>(item));
+    else SendMessage(GetParent(window), WM_PASTEPLUS_PASTE, 0, reinterpret_cast<LPARAM>(selected));
+    data_free(item);
+}
+
 static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, LPARAM data)
 {
     PastePane *pane = reinterpret_cast<PastePane *>(GetWindowLongPtr(window, GWLP_USERDATA));
@@ -745,12 +836,39 @@ static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, L
         SetWindowLongPtr(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pane));
         pane->information = pane_control(window, L"STATIC", L"", SS_LEFT, 100);
         pane->status = pane_control(window, L"STATIC", L"", SS_LEFT, 101);
+        pane->extract_text = pane_control(window, L"BUTTON", L"Extract text", BS_OWNERDRAW | WS_TABSTOP, 102);
         return 0;
     }
     if (!pane) return DefWindowProc(window, message, parameter, data);
     switch (message) {
     case WM_SIZE:
     case WM_DPICHANGED_AFTERPARENT: pane_layout(window, pane); return 0;
+        case WM_DRAWITEM: {
+            DRAWITEMSTRUCT *draw = reinterpret_cast<DRAWITEMSTRUCT *>(data);
+            if (draw && draw->CtlID == 102) {
+                COLORREF background = (draw->itemState & ODS_SELECTED) ? RGB(22, 79, 151) : RGB(36, 112, 196);
+                HBRUSH fill = CreateSolidBrush(background);
+                HBRUSH border = CreateSolidBrush(RGB(22, 79, 151));
+                RECT text = draw->rcItem;
+                int saved = SaveDC(draw->hDC);
+                FillRect(draw->hDC, &draw->rcItem, fill);
+                FrameRect(draw->hDC, &draw->rcItem, border);
+                SetBkMode(draw->hDC, TRANSPARENT);
+                SetTextColor(draw->hDC, RGB(255, 255, 255));
+                SelectObject(draw->hDC, GetStockObject(DEFAULT_GUI_FONT));
+                DrawText(draw->hDC, L"Extract text", -1, &text,
+                    DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+                if (draw->itemState & ODS_FOCUS) {
+                    InflateRect(&text, -pane_scale(window, 3), -pane_scale(window, 3));
+                    DrawFocusRect(draw->hDC, &text);
+                }
+                RestoreDC(draw->hDC, saved);
+                DeleteObject(fill);
+                DeleteObject(border);
+                return TRUE;
+            }
+            break;
+        }
     case WM_MOUSEWHEEL:
     case WM_VSCROLL: {
         SCROLLINFO scroll = { sizeof(scroll), SIF_ALL };
@@ -773,9 +891,12 @@ static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, L
     }
     case WM_COMMAND: {
         int identifier = LOWORD(parameter);
-        if (identifier >= 1000 && identifier < 1000 + static_cast<int>(pane->tiles.size())) {
+        if (identifier == 102) {
+            if (!pane->ocr_running) pane_extract_text(window, pane);
+        } else if (identifier >= 1000 && identifier < 1000 + static_cast<int>(pane->tiles.size())) {
             FormatTile &tile = pane->tiles[identifier - 1000];
-            if (tile.handler < 0) SendMessage(GetParent(window), WM_PASTEPLUS_PASTE, 0, reinterpret_cast<LPARAM>(tile.format));
+            if (tile.handler < 0 && format_is_ocr_image(tile.format)) pane_paste_image(window, pane, tile.format);
+            else if (tile.handler < 0) SendMessage(GetParent(window), WM_PASTEPLUS_PASTE, 0, reinterpret_cast<LPARAM>(tile.format));
             else {
                 std::wstring output, error;
                 SetWindowText(pane->status, L"Processing...");
@@ -787,6 +908,22 @@ static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, L
                 SetWindowText(pane->status, result ? L"" : error.c_str());
                 if (result) pane_text_paste(window, output);
             }
+        }
+        return 0;
+    }
+    case WM_PASTEPLUS_OCR_DONE: {
+        OcrCompletion *completion = reinterpret_cast<OcrCompletion *>(data);
+        pane->ocr_running = false;
+        BOOL has_image = FALSE;
+        if (pane->snapshot) for (DATA_INFO *item = pane->snapshot->child; item; item = item->next)
+            if (format_is_ocr_image(item)) { has_image = TRUE; break; }
+        EnableWindow(pane->extract_text, has_image);
+        if (completion) {
+            if (!completion->text.empty()) {
+                SetWindowText(pane->status, pane_text_copy(window, completion->text) ?
+                    L"Text extracted and copied to the clipboard." : L"Text was extracted but could not be copied.");
+            } else SetWindowText(pane->status, completion->error.c_str());
+            delete completion;
         }
         return 0;
     }
@@ -808,11 +945,16 @@ static void pane_add_tile(HWND window, PastePane *pane, DATA_INFO *format, int h
     if (handler >= 0) wsprintf(title, L"PH%d - %s", handler + 1, format->format_name);
     else lstrcpyn(title, format->format_name ? format->format_name : L"Format", ARRAYSIZE(title));
     HWND label = pane_control(tile, L"STATIC", title, SS_LEFT, 1);
-    HWND preview = pane_control(tile, L"EDIT", format_text(format, &bytes).c_str(),
-        ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP, 2);
+    HBITMAP image = handler < 0 && format_is_ocr_image(format) ?
+        create_image_preview(format, pane_scale(window, 232), pane_scale(window, 176)) : nullptr;
+    HWND preview = pane_control(tile, image ? L"STATIC" : L"EDIT",
+        image ? L"" : format_text(format, &bytes).c_str(),
+        image ? SS_BITMAP | SS_CENTERIMAGE : ES_MULTILINE | ES_READONLY | WS_VSCROLL | WS_TABSTOP, 2);
+    if (image) SendMessage(preview, STM_SETIMAGE, IMAGE_BITMAP, reinterpret_cast<LPARAM>(image));
     SetWindowSubclass(label, format_tile_proc, 1, reinterpret_cast<DWORD_PTR>(window));
     SetWindowSubclass(preview, format_tile_proc, 1, reinterpret_cast<DWORD_PTR>(window));
-    FormatTile entry = { format, handler, tile, static_cast<DWORD>(bytes.size()), bytes.empty() ? 0 : bytes_hash(bytes) };
+    FormatTile entry = { format, handler, tile, preview, image,
+        static_cast<DWORD>(bytes.size()), bytes.empty() ? 0 : bytes_hash(bytes) };
     pane->tiles.push_back(std::move(entry));
 }
 
@@ -884,6 +1026,10 @@ extern "C" void pasteplus_refresh(HWND window, DATA_INFO *item)
     wsprintf(information, L"%s\r\nFormats: %d    Duplicates / Unicode aliases: %d    Pasteable: %d    Unavailable: %d",
         *date ? date : L"No captured clip", total, duplicate, pasteable, unavailable);
     SetWindowText(pane->information, information);
+    BOOL has_image = FALSE;
+    if (pane->snapshot) for (DATA_INFO *format = pane->snapshot->child; format; format = format->next)
+        if (format_is_ocr_image(format)) { has_image = TRUE; break; }
+    EnableWindow(pane->extract_text, !pane->ocr_running);
     SetWindowText(pane->status, L"");
     pane_layout(window, pane);
 }
@@ -912,4 +1058,228 @@ extern "C" HWND pasteplus_symbols_create(HINSTANCE instance, HWND owner, int ide
     if (!RegisterClass(&descriptor) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return nullptr;
     return CreateWindowEx(WS_EX_CONTROLPARENT, descriptor.lpszClassName, L"", WS_CHILD | WS_VSCROLL | WS_CLIPCHILDREN,
         0, 0, 0, 0, owner, reinterpret_cast<HMENU>(static_cast<INT_PTR>(identifier)), instance, nullptr);
+}
+
+static bool format_is_ocr_image(DATA_INFO *format)
+{
+    return format->format == CF_BITMAP || format->format == CF_DIB || format->format == CF_DIBV5 ||
+        format->format == CF_ENHMETAFILE || format->format == CF_METAFILEPICT ||
+        (format->format_name && (StrStrI(format->format_name, L"image/") ||
+         !lstrcmpi(format->format_name, L"PNG") || !lstrcmpi(format->format_name, L"JPEG") ||
+         !lstrcmpi(format->format_name, L"JFIF") || !lstrcmpi(format->format_name, L"GIF") ||
+         !lstrcmpi(format->format_name, L"TIFF")));
+}
+
+static bool metafile_to_pixels(DATA_INFO *format, std::vector<BYTE> &pixels, UINT &width, UINT &height)
+{
+    HENHMETAFILE enhanced = nullptr;
+    METAFILEPICT picture = {};
+    if (format->format == CF_ENHMETAFILE) {
+        ENHMETAHEADER header = {};
+        enhanced = static_cast<HENHMETAFILE>(format->data);
+        if (!GetEnhMetaFileHeader(enhanced, sizeof(header), &header)) return false;
+        LONGLONG image_width = static_cast<LONGLONG>(header.rclBounds.right) - header.rclBounds.left;
+        LONGLONG image_height = static_cast<LONGLONG>(header.rclBounds.bottom) - header.rclBounds.top;
+        if (image_width < 1) image_width = 1;
+        if (image_height < 1) image_height = 1;
+        width = static_cast<UINT>(image_width > 4096 ? 4096 : image_width);
+        height = static_cast<UINT>(image_height > 4096 ? 4096 : image_height);
+    } else {
+        METAFILEPICT *source = static_cast<METAFILEPICT *>(GlobalLock(format->data));
+        if (!source) return false;
+        picture = *source;
+        GlobalUnlock(format->data);
+        LONGLONG image_width = picture.xExt, image_height = picture.yExt;
+        if (image_width < 0) image_width = -image_width;
+        if (image_height < 0) image_height = -image_height;
+        if (image_width < 1) image_width = 1;
+        if (image_height < 1) image_height = 1;
+        width = static_cast<UINT>(image_width > 4096 ? 4096 : image_width);
+        height = static_cast<UINT>(image_height > 4096 ? 4096 : image_height);
+    }
+    HDC screen = GetDC(nullptr);
+    if (!screen) return false;
+    BITMAPINFO info = {};
+    info.bmiHeader.biSize = sizeof(info.bmiHeader);
+    info.bmiHeader.biWidth = width;
+    info.bmiHeader.biHeight = -static_cast<LONG>(height);
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    void *bits = nullptr;
+    HBITMAP bitmap = CreateDIBSection(screen, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+    HDC memory = bitmap ? CreateCompatibleDC(screen) : nullptr;
+    HGDIOBJ previous = memory ? SelectObject(memory, bitmap) : nullptr;
+    bool rendered = false;
+    if (previous && previous != HGDI_ERROR) {
+        PatBlt(memory, 0, 0, width, height, WHITENESS);
+        if (enhanced) {
+            RECT target = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
+            rendered = PlayEnhMetaFile(memory, enhanced, &target) != FALSE;
+        } else {
+            SetMapMode(memory, MM_ANISOTROPIC);
+            SetWindowExtEx(memory, max(1, abs(picture.xExt)), max(1, abs(picture.yExt)), nullptr);
+            SetViewportExtEx(memory, static_cast<int>(width), static_cast<int>(height), nullptr);
+            rendered = picture.hMF && PlayMetaFile(memory, picture.hMF);
+        }
+        if (rendered) pixels.assign(static_cast<BYTE *>(bits), static_cast<BYTE *>(bits) +
+            static_cast<size_t>(width) * height * 4);
+        SelectObject(memory, previous);
+    }
+    if (memory) DeleteDC(memory);
+    if (bitmap) DeleteObject(bitmap);
+    ReleaseDC(nullptr, screen);
+    return rendered;
+}
+
+static bool image_to_pixels(DATA_INFO *format, std::vector<BYTE> &pixels, UINT &width, UINT &height)
+{
+    if (format->format == CF_ENHMETAFILE || format->format == CF_METAFILEPICT)
+        return metafile_to_pixels(format, pixels, width, height);
+    using Microsoft::WRL::ComPtr;
+    ComPtr<IWICImagingFactory> factory;
+    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+        IID_PPV_ARGS(&factory)))) return false;
+    ComPtr<IWICBitmap> bitmap;
+    ComPtr<IWICBitmapFrameDecode> frame;
+    ComPtr<IWICBitmapSource> source;
+    if (format->format == CF_BITMAP) {
+        if (FAILED(factory->CreateBitmapFromHBITMAP(static_cast<HBITMAP>(format->data), nullptr,
+            WICBitmapUseAlpha, &bitmap))) return false;
+        source = bitmap.Get();
+    } else {
+        BYTE *memory = static_cast<BYTE *>(GlobalLock(format->data));
+        if (!memory) return false;
+        DWORD available = static_cast<DWORD>(min(GlobalSize(format->data), format->size ? format->size : MAXDWORD));
+        if (available > 256 * 1024 * 1024) { GlobalUnlock(format->data); return false; }
+        std::vector<BYTE> encoded;
+        if (format->format == CF_DIB || format->format == CF_DIBV5) {
+            if (available < sizeof(BITMAPINFOHEADER)) { GlobalUnlock(format->data); return false; }
+            BITMAPINFOHEADER *header = reinterpret_cast<BITMAPINFOHEADER *>(memory);
+            if (header->biSize < sizeof(BITMAPINFOHEADER) || header->biSize > available) {
+                GlobalUnlock(format->data);
+                return false;
+            }
+            DWORD offset = header->biSize;
+            if (header->biSize == sizeof(BITMAPINFOHEADER) && header->biCompression == BI_BITFIELDS)
+                offset += 3 * sizeof(DWORD);
+            else if (header->biSize == sizeof(BITMAPINFOHEADER) && header->biCompression == 6)
+                offset += 4 * sizeof(DWORD);
+            DWORD colors = header->biClrUsed;
+            if (!colors && header->biBitCount <= 8) colors = 1U << header->biBitCount;
+            if (colors > (available - min(offset, available)) / sizeof(RGBQUAD)) {
+                GlobalUnlock(format->data);
+                return false;
+            }
+            offset += colors * sizeof(RGBQUAD);
+            encoded.resize(sizeof(BITMAPFILEHEADER) + available);
+            BITMAPFILEHEADER file_header = {};
+            file_header.bfType = 0x4D42;
+            file_header.bfSize = static_cast<DWORD>(encoded.size());
+            file_header.bfOffBits = sizeof(BITMAPFILEHEADER) + offset;
+            CopyMemory(encoded.data(), &file_header, sizeof(file_header));
+            CopyMemory(encoded.data() + sizeof(file_header), memory, available);
+        } else {
+            encoded.assign(memory, memory + available);
+        }
+        GlobalUnlock(format->data);
+        if (encoded.empty() || encoded.size() > MAXDWORD) return false;
+        ComPtr<IWICStream> stream;
+        ComPtr<IWICBitmapDecoder> decoder;
+        if (FAILED(factory->CreateStream(&stream)) ||
+            FAILED(stream->InitializeFromMemory(encoded.data(), static_cast<DWORD>(encoded.size()))) ||
+            FAILED(factory->CreateDecoderFromStream(stream.Get(), nullptr, WICDecodeMetadataCacheOnLoad, &decoder)) ||
+            FAILED(decoder->GetFrame(0, &frame))) return false;
+        source = frame.Get();
+    }
+    if (FAILED(source->GetSize(&width, &height)) || !width || !height ||
+        static_cast<ULONGLONG>(width) * height > 40000000ULL) return false;
+    ComPtr<IWICFormatConverter> converter;
+    if (FAILED(factory->CreateFormatConverter(&converter)) ||
+        FAILED(converter->Initialize(source.Get(), GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone,
+            nullptr, 0.0, WICBitmapPaletteTypeCustom))) return false;
+    UINT stride = width * 4;
+    pixels.resize(static_cast<size_t>(stride) * height);
+    return SUCCEEDED(converter->CopyPixels(nullptr, stride, static_cast<UINT>(pixels.size()), pixels.data()));
+}
+
+static HBITMAP create_image_preview(DATA_INFO *format, UINT max_width, UINT max_height)
+{
+    std::vector<BYTE> source;
+    UINT source_width = 0, source_height = 0;
+    if (!image_to_pixels(format, source, source_width, source_height)) return nullptr;
+    double scale = min(1.0, min(static_cast<double>(max_width) / source_width,
+        static_cast<double>(max_height) / source_height));
+    UINT width = max(1U, static_cast<UINT>(source_width * scale));
+    UINT height = max(1U, static_cast<UINT>(source_height * scale));
+    BITMAPINFO info = {};
+    info.bmiHeader.biSize = sizeof(info.bmiHeader);
+    info.bmiHeader.biWidth = width;
+    info.bmiHeader.biHeight = -static_cast<LONG>(height);
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    void *destination = nullptr;
+    HBITMAP image = CreateDIBSection(nullptr, &info, DIB_RGB_COLORS, &destination, nullptr, 0);
+    if (!image || !destination) { if (image) DeleteObject(image); return nullptr; }
+    BYTE *output = static_cast<BYTE *>(destination);
+    for (UINT y = 0; y < height; y++) {
+        UINT source_y = static_cast<UINT>((static_cast<ULONGLONG>(y) * source_height) / height);
+        for (UINT x = 0; x < width; x++) {
+            UINT source_x = static_cast<UINT>((static_cast<ULONGLONG>(x) * source_width) / width);
+            CopyMemory(output + (static_cast<size_t>(y) * width + x) * 4,
+                source.data() + (static_cast<size_t>(source_y) * source_width + source_x) * 4, 4);
+        }
+    }
+    return image;
+}
+
+static bool ocr_runtime_available()
+{
+    HMODULE winrt = LoadLibrary(L"api-ms-win-core-winrt-l1-1-0.dll");
+    HMODULE winrt_error = LoadLibrary(L"api-ms-win-core-winrt-error-l1-1-1.dll");
+    if (winrt) FreeLibrary(winrt);
+    if (winrt_error) FreeLibrary(winrt_error);
+    return winrt != nullptr && winrt_error != nullptr;
+}
+
+static void extract_text_worker(HWND window, DATA_INFO *image)
+{
+    OcrCompletion *completion = new(std::nothrow) OcrCompletion;
+    if (!completion) { data_free(image); return; }
+    bool initialized = false;
+    if (!ocr_runtime_available()) completion->error = L"OCR requires Windows 10 or later.";
+    else try {
+        winrt::init_apartment(winrt::apartment_type::multi_threaded);
+        initialized = true;
+        std::vector<BYTE> pixels;
+        UINT width = 0, height = 0;
+        if (!image_to_pixels(image, pixels, width, height)) completion->error = L"Could not decode the clipboard image.";
+        else {
+            auto engine = winrt::Windows::Media::Ocr::OcrEngine::TryCreateFromUserProfileLanguages();
+            if (!engine) {
+                wchar_t locale[LOCALE_NAME_MAX_LENGTH] = {};
+                if (GetUserDefaultLocaleName(locale, ARRAYSIZE(locale)))
+                    engine = winrt::Windows::Media::Ocr::OcrEngine::TryCreateFromLanguage(
+                        winrt::Windows::Globalization::Language(locale));
+            }
+            if (!engine) completion->error = L"No OCR language is installed for the current Windows profile.";
+            else {
+                auto buffer = winrt::Windows::Security::Cryptography::CryptographicBuffer::CreateFromByteArray(
+                    winrt::array_view<uint8_t const>(pixels.data(), pixels.size()));
+                auto bitmap = winrt::Windows::Graphics::Imaging::SoftwareBitmap::CreateCopyFromBuffer(buffer,
+                    winrt::Windows::Graphics::Imaging::BitmapPixelFormat::Bgra8, width, height,
+                    winrt::Windows::Graphics::Imaging::BitmapAlphaMode::Ignore);
+                completion->text = engine.RecognizeAsync(bitmap).get().Text().c_str();
+                if (completion->text.empty()) completion->error = L"No text was found in the image.";
+            }
+        }
+    } catch (const winrt::hresult_error &error) {
+        completion->error = error.message().c_str();
+    } catch (...) {
+        completion->error = L"OCR failed.";
+    }
+    if (initialized) winrt::uninit_apartment();
+    data_free(image);
+    if (!PostMessage(window, WM_PASTEPLUS_OCR_DONE, 0, reinterpret_cast<LPARAM>(completion))) delete completion;
 }

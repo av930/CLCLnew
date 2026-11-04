@@ -3581,6 +3581,10 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 		if (lParam != 0) viewer_paste_clip(hWnd, (DATA_INFO *)lParam, TRUE);
 		break;
 
+	case WM_PASTEPLUS_COPY:
+		if (lParam != 0) SendMessage(main_wnd, WM_ITEM_TO_CLIPBOARD_EXACT, 0, lParam);
+		break;
+
 	case WM_TILE_NEW:
 	case WM_TILE_EDIT:
 	case WM_TILE_DELETE:
