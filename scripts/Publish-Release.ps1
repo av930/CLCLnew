@@ -69,11 +69,11 @@ try {
 		return
 	}
 
-	$gitCommand = Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue
+	$gitCommand = Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 	if ($null -eq $gitCommand) {
 		throw 'Git for Windows is required.'
 	}
-	$ghCommand = Get-Command gh.exe -CommandType Application -ErrorAction SilentlyContinue
+	$ghCommand = Get-Command gh.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 	if ($null -eq $ghCommand) {
 		throw 'GitHub CLI is required. Install GitHub CLI, then run: gh auth login'
 	}
