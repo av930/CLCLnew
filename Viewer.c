@@ -2875,16 +2875,32 @@ static BOOL viewer_paste_clip(HWND window, DATA_INFO *item, BOOL exact)
 			BOOL attached = AttachThreadInput(GetCurrentThreadId(), thread, TRUE);
 			if (attached) { SetFocus(paste_focus); AttachThreadInput(GetCurrentThreadId(), thread, FALSE); }
 		}
-		if (GetForegroundWindow() == target) {
-			SendMessage(main_wnd, WM_UNREGIST_HOTKEY, 0, 0);
-			sendkey_paste(target);
-			SendMessage(main_wnd, WM_REGIST_HOTKEY, 0, 0);
-		} else {
-			ShowWindow(window, SW_SHOW);
-			_SetForegroundWindow(window);
-			MessageBox(window, TEXT("Could not activate the target application. Clipboard contents were updated but not pasted."),
-				ERROR_TITLE, MB_OK | MB_ICONWARNING);
-			return FALSE;
+		{
+			int wait;
+			DWORD target_process = 0;
+			DWORD fg_process = 0;
+			GetWindowThreadProcessId(target, &target_process);
+			for (wait = 0; wait < 20; wait++) {
+				HWND fg = GetForegroundWindow();
+				fg_process = 0;
+				if (fg != NULL) GetWindowThreadProcessId(fg, &fg_process);
+				if (fg_process != 0 && fg_process == target_process) break;
+				Sleep(25);
+				if (wait == 10) _SetForegroundWindow(target);
+			}
+			if (GetForegroundWindow() != NULL) GetWindowThreadProcessId(GetForegroundWindow(), &fg_process);
+			else fg_process = 0;
+			if (fg_process != 0 && fg_process == target_process) {
+				SendMessage(main_wnd, WM_UNREGIST_HOTKEY, 0, 0);
+				sendkey_paste(target);
+				SendMessage(main_wnd, WM_REGIST_HOTKEY, 0, 0);
+			} else {
+				ShowWindow(window, SW_SHOW);
+				_SetForegroundWindow(window);
+				MessageBox(window, TEXT("Could not activate the target application. Clipboard contents were updated but not pasted."),
+					ERROR_TITLE, MB_OK | MB_ICONWARNING);
+				return FALSE;
+			}
 		}
 	}
 	return TRUE;
