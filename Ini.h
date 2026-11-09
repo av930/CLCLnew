@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * Ini.h
  *
@@ -45,6 +45,9 @@
 #define OPTION_SHOW_WINDOW				TEXT("6")
 #define OPTION_SHOW_SENDKEY				TEXT("7")
 #define OPTION_SHOW_TOOL				TEXT("8")
+
+#define CLIP_LOAD_DEFAULT				20
+#define CLIP_LOAD_MAX					100
 
 /* Struct */
 // color info
@@ -258,6 +261,8 @@ typedef struct _OPTION_INFO {
 	int config_history_days_enabled;
 	int config_history_days;
 	int config_favorite_max;
+	int config_load_clip_count;
+	int config_layout;
 	int config_clear_clipboard_startup;
 	int config_duplicate_policy;
 	TCHAR config_hotkey_clipmanager[64];

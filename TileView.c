@@ -30,8 +30,13 @@ typedef struct {
     FILETIME modified;
     RECT bounds;
     RECT divider;
-    int kind, image_width, image_height;
+    int kind, image_width, image_height, row_top;
 } TILE_POSITION;
+
+typedef struct {
+    int x1, y1, x2, y2;
+    BOOL dotted;
+} TILE_LINE;
 
 typedef struct {
     TILE_ENTRY *entries;
@@ -47,6 +52,10 @@ typedef struct {
     int position_count, layout_width, layout_dpi;
     int left, top, row_height, occupied[2], current_span;
     int *paint_order;
+    TILE_LINE *lines;
+    int line_count;
+    BOOL vertical;
+    int *separators, separator_count;
     BOOL samples;
 } TILE_VIEW;
 
@@ -253,7 +262,11 @@ static void tile_clear(TILE_VIEW *view)
         if (view->entries[index].image != NULL) DeleteObject(view->entries[index].image);
     }
     mem_free(&view->entries);
+    mem_free(&view->lines);
+    view->line_count = 0;
     mem_free(&view->paint_order);
+    mem_free(&view->separators);
+    view->separator_count = 0;
     view->count = 0;
 }
 
@@ -266,10 +279,329 @@ static int __cdecl tile_compare_position(void *context, const void *first, const
         left->left != right->left ? (left->left > right->left ? 1 : -1) : 0;
 }
 
+/* Natural tile size: same rules in every layout. text_pad narrows the text measuring area (front badge). */
+static void tile_size(HWND window, HDC context, TILE_ENTRY *entry, int max_width, int text_pad,
+    int *out_width, int *out_height, int *out_columns)
+{
+    RECT measured;
+    int gap = tile_scale(window, 8);
+    int cell = tile_scale(window, 96);
+    int block = cell * 2 + gap;
+    int columns = 2, rows = 1, width, height;
+    BOOL portrait = entry->image != NULL && entry->image_height > entry->image_width;
+    if (entry->image != NULL) {
+        columns = portrait ? 1 : (LONGLONG)entry->image_width >= (LONGLONG)entry->image_height * 4 ? 4 : 2;
+        if ((LONGLONG)entry->image_width < (LONGLONG)entry->image_height * 2) rows = 2;
+    }
+    width = columns * (cell + gap) - gap;
+    height = entry->image == NULL ? tile_scale(window, 48) : rows * (cell + gap) - gap;
+    while (entry->image == NULL && (height < cell || columns < 4)) {
+        SetRect(&measured, 0, 0, max(1, width - gap * 2 - text_pad), 0);
+        DrawText(context, entry->text, -1, &measured, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
+        if (measured.bottom <= height - gap * 2) {
+            break;
+        }
+        if (height < cell) height = cell;
+        else columns *= 2;
+        width = columns * (cell + gap) - gap;
+    }
+    if (entry->kind >= 1 && entry->kind <= 4) {
+        columns = entry->kind == 3 ? 4 : 2;
+        rows = entry->kind == 4 ? 2 : 1;
+        width = columns * (cell + gap) - gap;
+        height = entry->kind == 1 ? tile_scale(window, 48) : rows * (cell + gap) - gap;
+    }
+    if (entry->kind == 6) {
+        columns = 4;
+        width = columns * (cell + gap) - gap;
+        height = tile_scale(window, 24);
+    }
+    if (entry->kind == 5 && (portrait || entry->item == NULL)) {
+        columns = 1;
+        width = cell;
+        height = block;
+    }
+    *out_width = min(width, max(1, max_width));
+    *out_height = height;
+    *out_columns = columns;
+}
+
+/* Isolated vertical layout: a text clip is either the one-line 408x24 panel or the 408x96 panel. */
+static void tile_vertical_text_size(HWND window, HDC context, TILE_ENTRY *entry, int max_width, int text_pad,
+    int *out_width, int *out_height)
+{
+    RECT measured;
+    int gap = tile_scale(window, 8);
+    int cell = tile_scale(window, 96);
+    int width = 4 * (cell + gap) - gap;
+    int one_line = tile_scale(window, 24);
+    *out_width = min(width, max(1, max_width));
+    SetRect(&measured, 0, 0, max(1, *out_width - gap * 2 - text_pad), 0);
+    DrawText(context, entry->text, -1, &measured, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
+    *out_height = measured.bottom <= one_line - tile_scale(window, 4) ? one_line : cell;
+}
+
+static void tile_finish_layout(HWND window, TILE_VIEW *view, const RECT *client)
+{
+    SCROLLINFO scroll;
+    int index;
+    mem_free(&view->paint_order);
+    view->paint_order = view->count ? mem_alloc(view->count * sizeof(int)) : NULL;
+    if (view->paint_order) {
+        for (index = 0; index < view->count; index++) view->paint_order[index] = index;
+        qsort_s(view->paint_order, view->count, sizeof(int), tile_compare_position, view);
+    }
+    ZeroMemory(&scroll, sizeof(scroll));
+    scroll.cbSize = sizeof(scroll);
+    scroll.fMask = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL;
+    scroll.nMax = max(0, view->height - 1);
+    scroll.nPage = client->bottom;
+    scroll.nPos = view->offset;
+    SetScrollInfo(window, SB_VERT, &scroll, TRUE);
+    view->offset = GetScrollPos(window, SB_VERT);
+    view->laying_out = FALSE;
+    InvalidateRect(window, NULL, FALSE);
+}
+
+typedef struct {
+    int x, width, y;                    /* text column: y is the next free position */
+    BOOL has_date;
+    BOOL continued;                     /* continues the previous column's 12-hour group: no divider, header room kept */
+    SYSTEMTIME date;
+    BYTE *occupied;                     /* image column: one bit mask per cell row */
+    int grid_columns, rows_used, group_row, group_y;
+} TILE_COLUMN;
+
+static BOOL tile_same_period(const SYSTEMTIME *first, const SYSTEMTIME *second)
+{
+    return first->wYear == second->wYear && first->wMonth == second->wMonth && first->wDay == second->wDay &&
+        first->wHour / 12 == second->wHour / 12;
+}
+
+static void tile_add_line(TILE_VIEW *view, int capacity, int x1, int y1, int x2, int y2, BOOL dotted)
+{
+    TILE_LINE *line;
+    if (view->lines == NULL || view->line_count >= capacity) return;
+    line = &view->lines[view->line_count++];
+    line->x1 = x1;
+    line->y1 = y1;
+    line->x2 = x2;
+    line->y2 = y2;
+    line->dotted = dotted;
+}
+
+/* Dotted line every two cell rows (the height of the tallest panel) inside one 12-hour group of an image column. */
+static void tile_close_image_group(HWND window, TILE_VIEW *view, int capacity, const TILE_COLUMN *column)
+{
+    int pitch = tile_scale(window, 96) + tile_scale(window, 8);
+    int row, y;
+    for (row = 2; row < column->rows_used - column->group_row; row += 2) {
+        y = column->group_y + row * pitch - tile_scale(window, 8) / 2;
+        tile_add_line(view, capacity, column->x, y, column->x + column->width, y, TRUE);
+    }
+}
+
+/* First free spot for a panel, looking back at most four cell rows and never above row group_row. */
+static void tile_find_slot(const TILE_COLUMN *column, int group_row, int span_width, int span_height,
+    int *out_row, int *out_cell)
+{
+    int row, cell_column, check;
+    for (row = max(group_row, column->rows_used - 4); ; row++) {
+        for (cell_column = 0; cell_column + span_width <= column->grid_columns; cell_column++) {
+            BYTE mask = (BYTE)(((1 << span_width) - 1) << cell_column);
+            for (check = 0; check < span_height && !(column->occupied[row + check] & mask); check++) {}
+            if (check == span_height) {
+                *out_row = row;
+                *out_cell = cell_column;
+                return;
+            }
+        }
+    }
+}
+
+/*
+ * Isolated vertical layout, a queue: the newest clip is at the top left and every older clip follows. Text clips
+ * fill the text columns one after another (a column is full at the window height, the last one keeps growing and
+ * scrolls); images do the same in the image columns on a cell grid. Columns are at most 416px wide and every column
+ * has its own 12-hour dividers.
+ */
+static void tile_layout_vertical(HWND window, TILE_VIEW *view, const RECT *client)
+{
+    TILE_COLUMN columns[5];
+    HDC context;
+    HFONT previous;
+    TILE_ENTRY *entry;
+    BOOL allocated = TRUE;
+    int gap = tile_scale(window, 8);
+    int margin = tile_scale(window, 12);
+    int pitch = tile_scale(window, 96) + gap;
+    int header = tile_scale(window, 28);
+    int badge_pad = tile_scale(window, 22);
+    int column_maximum = tile_scale(window, 416);
+    int text_gap = tile_scale(window, 2);
+    int column_gap = margin;
+    int available = max(1, client->right - margin * 2);
+    int limit = client->bottom - margin;
+    int text_current = 0, image_current;
+    int capacity = view->count * 2 + 16;
+    int row_capacity = view->count * 2 + 8;
+    int image_width = 0, text_count, image_count, total, natural, usable, text_width, image_column_width;
+    int index, width, height, span, x, bottom;
+
+    ZeroMemory(columns, sizeof(columns));
+    mem_free(&view->separators);
+    view->separator_count = 0;
+    view->position_count = 0;
+    mem_free(&view->lines);
+    view->line_count = 0;
+    view->lines = mem_alloc(capacity * sizeof(TILE_LINE));
+    context = GetDC(window);
+    previous = SelectObject(context, view->font);
+    for (index = 0; index < view->count; index++) {
+        entry = &view->entries[index];
+        if (entry->image == NULL) continue;
+        tile_size(window, context, entry, 0x3FFFFFFF, 0, &width, &height, &span);
+        image_width = max(image_width, width);
+    }
+    if (image_width == 0) image_width = 2 * pitch - gap;
+    image_width = min(image_width, column_maximum);
+
+#define TILE_NEEDED(t, i) ((t) * column_maximum + (i) * image_width + ((t) + (i) - 1) * column_gap)
+    if (available >= TILE_NEEDED(3, 2)) { text_count = 3; image_count = 2; }
+    else if (available >= TILE_NEEDED(3, 1)) { text_count = 3; image_count = 1; }
+    else { text_count = 2; image_count = 1; }
+#undef TILE_NEEDED
+    total = text_count + image_count;
+    natural = text_count * column_maximum + image_count * image_width;
+    usable = available - (total - 1) * column_gap;
+    if (usable >= natural) {
+        text_width = column_maximum;
+        image_column_width = image_width;
+    } else {
+        text_width = max(1, MulDiv(usable, column_maximum, natural));
+        image_column_width = max(1, MulDiv(usable, image_width, natural));
+    }
+    x = margin;
+    for (index = 0; index < total; index++) {
+        columns[index].x = x;
+        columns[index].width = index < text_count ? text_width : image_column_width;
+        columns[index].y = margin;
+        columns[index].group_y = margin;
+        if (index >= text_count) {
+            columns[index].grid_columns = max(1, min(8, (columns[index].width + gap) / pitch));
+            columns[index].occupied = mem_calloc(row_capacity);
+            if (columns[index].occupied == NULL) allocated = FALSE;
+        }
+        x += columns[index].width + column_gap;
+    }
+    if (view->lines == NULL) allocated = FALSE;
+
+    image_current = text_count;
+    for (index = 0; allocated && index < view->count; index++) {
+        TILE_COLUMN *column;
+        entry = &view->entries[index];
+        SetRectEmpty(&entry->divider);
+        if (entry->image == NULL) {
+            BOOL need_divider;
+            tile_vertical_text_size(window, context, entry, text_width, badge_pad, &width, &height);
+            for (;;) {
+                column = &columns[text_current];
+                need_divider = !column->has_date || !tile_same_period(&column->date, &entry->date);
+                if (column->has_date && text_current + 1 < text_count &&
+                    column->y + (need_divider ? header : 0) + height > limit) {
+                    TILE_COLUMN *next = &columns[text_current + 1];
+                    next->date = column->date;
+                    next->has_date = TRUE;
+                    next->continued = TRUE;
+                    next->y = margin + header;
+                    text_current++;
+                    continue;
+                }
+                break;
+            }
+            if (need_divider) {
+                if (column->continued) column->y = margin;
+                SetRect(&entry->divider, column->x, column->y, column->x + column->width, column->y + header);
+                column->y += header;
+                column->date = entry->date;
+                column->has_date = TRUE;
+            }
+            column->continued = FALSE;
+            SetRect(&entry->bounds, column->x, column->y, column->x + min(width, column->width), column->y + height);
+            column->y += height + text_gap;
+        } else {
+            int span_width, span_height, row, cell_column, check, group_y, group_row;
+            BOOL need_divider;
+            tile_size(window, context, entry, 0x3FFFFFFF, 0, &width, &height, &span);
+            for (;;) {
+                column = &columns[image_current];
+                need_divider = !column->has_date || !tile_same_period(&column->date, &entry->date);
+                group_y = column->group_y;
+                group_row = column->group_row;
+                if (need_divider) {
+                    if (column->continued) group_y = margin;
+                    else if (column->has_date) group_y += (column->rows_used - column->group_row) * pitch;
+                    group_y += header;
+                    group_row = column->rows_used;
+                }
+                span_width = max(1, min(column->grid_columns, (width + gap) / pitch));
+                span_height = max(1, (height + gap) / pitch);
+                tile_find_slot(column, group_row, span_width, span_height, &row, &cell_column);
+                bottom = group_y + (row - group_row) * pitch + span_height * pitch - gap;
+                if (column->has_date && image_current + 1 < total && bottom > limit) {
+                    TILE_COLUMN *next = &columns[image_current + 1];
+                    next->date = column->date;
+                    next->has_date = TRUE;
+                    next->continued = TRUE;
+                    next->group_y = margin + header;
+                    image_current++;
+                    continue;
+                }
+                break;
+            }
+            if (need_divider) {
+                if (column->has_date && !column->continued) tile_close_image_group(window, view, capacity, column);
+                SetRect(&entry->divider, column->x, group_y - header, column->x + column->width, group_y);
+                column->group_y = group_y;
+                column->group_row = group_row;
+                column->date = entry->date;
+                column->has_date = TRUE;
+            }
+            column->continued = FALSE;
+            for (check = 0; check < span_height; check++) {
+                column->occupied[row + check] |= (BYTE)(((1 << span_width) - 1) << cell_column);
+            }
+            column->rows_used = max(column->rows_used, row + span_height);
+            x = column->x + cell_column * pitch;
+            bottom = column->group_y + (row - column->group_row) * pitch;
+            SetRect(&entry->bounds, x, bottom, x + span_width * pitch - gap, bottom + span_height * pitch - gap);
+        }
+    }
+
+    bottom = margin;
+    for (index = 0; index < total; index++) {
+        if (index < text_count) {
+            bottom = max(bottom, columns[index].y - (columns[index].has_date ? text_gap : 0));
+        } else {
+            if (columns[index].has_date) tile_close_image_group(window, view, capacity, &columns[index]);
+            bottom = max(bottom, columns[index].group_y +
+                (columns[index].rows_used - columns[index].group_row) * pitch - (columns[index].rows_used ? gap : 0));
+            mem_free(&columns[index].occupied);
+        }
+    }
+    view->height = bottom + margin;
+    for (index = 0; index + 1 < total; index++) {
+        x = columns[index].x + columns[index].width + column_gap / 2;
+        tile_add_line(view, capacity, x, 0, x, max(view->height, client->bottom), FALSE);
+    }
+    SelectObject(context, previous);
+    ReleaseDC(window, context);
+    tile_finish_layout(window, view, client);
+}
+
 static void tile_layout(HWND window, TILE_VIEW *view)
 {
-    RECT client, measured;
-    SCROLLINFO scroll;
+    RECT client;
     HDC context;
     HFONT previous;
     int index, sequence, start = 0, width, height, left, top, row_height = 0;
@@ -284,6 +616,11 @@ static void tile_layout(HWND window, TILE_VIEW *view)
     }
     view->laying_out = TRUE;
     GetClientRect(window, &client);
+    view->line_count = 0;
+    if (view->vertical && !view->favorites && !view->samples) {
+        tile_layout_vertical(window, view, &client);
+        return;
+    }
     left = margin;
     top = margin;
     if (!view->favorites) {
@@ -336,36 +673,8 @@ static void tile_layout(HWND window, TILE_VIEW *view)
             occupied[0] = occupied[1] = 0;
             current_span = 0;
         }
-        int columns = 2, rows = 1;
-        BOOL portrait = entry->image != NULL && entry->image_height > entry->image_width;
-        if (entry->image != NULL) {
-            columns = portrait ? 1 : (LONGLONG)entry->image_width >= (LONGLONG)entry->image_height * 4 ? 4 : 2;
-            if ((LONGLONG)entry->image_width < (LONGLONG)entry->image_height * 2) rows = 2;
-        }
-        width = columns * (cell + gap) - gap;
-        height = entry->image == NULL ? tile_scale(window, 48) : rows * (cell + gap) - gap;
-        while (entry->image == NULL && (height < cell || columns < 4)) {
-            SetRect(&measured, 0, 0, max(1, width - gap * 2), 0);
-            DrawText(context, entry->text, -1, &measured, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
-            if (measured.bottom <= height - gap * 2) {
-                break;
-            }
-            if (height < cell) height = cell;
-            else columns *= 2;
-            width = columns * (cell + gap) - gap;
-        }
-        if (entry->kind >= 1 && entry->kind <= 4) {
-            columns = entry->kind == 3 ? 4 : 2;
-            rows = entry->kind == 4 ? 2 : 1;
-            width = columns * (cell + gap) - gap;
-            height = entry->kind == 1 ? tile_scale(window, 48) : rows * (cell + gap) - gap;
-        }
-        if (entry->kind == 5 && (portrait || entry->item == NULL)) {
-            columns = 1;
-            width = cell;
-            height = block;
-        }
-        width = min(width, max(1, client.right - margin * 2));
+        int columns;
+        tile_size(window, context, entry, client.right - margin * 2, 0, &width, &height, &columns);
         int span = columns == 4 ? 2 : 1;
         int slots = height <= tile_scale(window, 48) ? 1 : height <= cell ? 2 : 4;
         // Only small/horizontal tiles stack below; under a long tile they fill the least-used half.
@@ -397,6 +706,7 @@ static void tile_layout(HWND window, TILE_VIEW *view)
             position->item = entry->item;
             position->modified = entry->item->modified;
             position->bounds = entry->bounds;
+            position->row_top = top;
             position->divider = entry->divider;
             position->kind = entry->kind;
             position->image_width = entry->image_width;
@@ -416,6 +726,9 @@ static void tile_layout(HWND window, TILE_VIEW *view)
         view->occupied[0] = occupied[0];
         view->occupied[1] = occupied[1];
         view->current_span = current_span;
+        mem_free(&view->separators);
+        view->separators = view->count ? mem_alloc(view->count * sizeof(int)) : NULL;
+        view->separator_count = 0;
         for (sequence = 0; sequence < view->count; sequence++) {
             TILE_POSITION *position = &view->positions[sequence];
             entry = &view->entries[view->count - 1 - sequence];
@@ -423,6 +736,11 @@ static void tile_layout(HWND window, TILE_VIEW *view)
                 margin + end - position->bounds.bottom + tile_scale(window, 28),
                 client.right - position->bounds.left,
                 margin + end - position->bounds.top + tile_scale(window, 28));
+            if (view->separators != NULL && sequence > 0 && position->row_top != view->positions[sequence - 1].row_top &&
+                IsRectEmpty(&position->divider)) {
+                view->separators[view->separator_count++] =
+                    margin + end - (position->row_top - gap / 2) + tile_scale(window, 28);
+            }
             SetRectEmpty(&entry->divider);
             if (sequence + 1 == view->count || !IsRectEmpty(&view->positions[sequence + 1].divider)) {
                 int group_end = sequence + 1 == view->count ? end : view->positions[sequence + 1].divider.top - gap;
@@ -431,23 +749,8 @@ static void tile_layout(HWND window, TILE_VIEW *view)
             }
         }
     }
-    mem_free(&view->paint_order);
-    view->paint_order = view->count ? mem_alloc(view->count * sizeof(int)) : NULL;
-    if (view->paint_order) {
-        for (index = 0; index < view->count; index++) view->paint_order[index] = index;
-        qsort_s(view->paint_order, view->count, sizeof(int), tile_compare_position, view);
-    }
     view->height = top + row_height + margin;
-    ZeroMemory(&scroll, sizeof(scroll));
-    scroll.cbSize = sizeof(scroll);
-    scroll.fMask = SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL;
-    scroll.nMax = max(0, view->height - 1);
-    scroll.nPage = client.bottom;
-    scroll.nPos = view->offset;
-    SetScrollInfo(window, SB_VERT, &scroll, TRUE);
-    view->offset = GetScrollPos(window, SB_VERT);
-    view->laying_out = FALSE;
-    InvalidateRect(window, NULL, FALSE);
+    tile_finish_layout(window, view, &client);
 }
 
 void tileview_refresh(HWND window, DATA_INFO *items)
@@ -465,7 +768,7 @@ void tileview_refresh(HWND window, DATA_INFO *items)
             count++;
         }
     }
-    count += view->favorites ? 5 : 0;
+    count += view->favorites ? 6 : 0;
     view->entries = count ? mem_calloc(sizeof(TILE_ENTRY) * count) : NULL;
     if (view->entries != NULL) {
         for (item = items; item != NULL; item = item->next) {
@@ -487,7 +790,7 @@ void tileview_refresh(HWND window, DATA_INFO *items)
             view->count++;
         }
         if (view->favorites) {
-            for (count = 1; count <= 5; count++) {
+            for (count = 1; count <= 6; count++) {
                 view->entries[view->count].kind = count;
                 view->entries[view->count++].text = alloc_copy(TEXT("+"));
             }
@@ -515,6 +818,15 @@ void tileview_samples(HWND window, BOOL enabled)
 {
     TILE_VIEW *view = (TILE_VIEW *)GetWindowLongPtr(window, GWLP_USERDATA);
     if (view != NULL) view->samples = enabled;
+}
+
+void tileview_layout(HWND window, BOOL vertical)
+{
+    TILE_VIEW *view = (TILE_VIEW *)GetWindowLongPtr(window, GWLP_USERDATA);
+    if (view == NULL || view->vertical == vertical) return;
+    view->vertical = vertical;
+    view->position_count = 0;
+    tile_layout(window, view);
 }
 
 static void tile_draw_text(HDC context, RECT bounds, const TCHAR *text, const TCHAR *keyword, COLORREF foreground)
@@ -584,7 +896,7 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
     old_bitmap = SelectObject(context, buffer);
     old_font = SelectObject(context, view->font);
     FillRect(context, &client, dark_mode_get_brush(COLOR_WINDOW));
-    surface = CreateSolidBrush(dark_mode_get_color(COLOR_BTNFACE));
+    surface = CreateSolidBrush(dark_mode_is_dark() ? dark_mode_get_color(COLOR_BTNFACE) : RGB(248, 248, 248));
     search_surface = CreateSolidBrush(RGB(255, 255, 224));
     category_surfaces[0] = CreateSolidBrush(RGB(160, 160, 160));
     category_surfaces[1] = CreateSolidBrush(RGB(88, 88, 88));
@@ -594,6 +906,31 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
     pen = CreatePen(PS_SOLID, 1, dark_mode_get_color(COLOR_3DSHADOW));
     old_pen = SelectObject(context, pen);
     SetBkMode(context, TRANSPARENT);
+    if (view->separators != NULL && view->separator_count > 0) {
+        HPEN dotted = CreatePen(PS_DOT, 1, dark_mode_get_color(COLOR_3DSHADOW));
+        HGDIOBJ previous_pen = SelectObject(context, dotted);
+        for (sequence = 0; sequence < view->separator_count; sequence++) {
+            int y = view->separators[sequence] - view->offset;
+            if (y < 0 || y > client.bottom) continue;
+            MoveToEx(context, tile_scale(window, 12), y, NULL);
+            LineTo(context, client.right - tile_scale(window, 12), y);
+        }
+        SelectObject(context, previous_pen);
+        DeleteObject(dotted);
+    }
+    if (view->lines != NULL && view->line_count > 0) {
+        HPEN dotted = CreatePen(PS_DOT, 1, dark_mode_get_color(COLOR_3DSHADOW));
+        int line_index;
+        for (line_index = 0; line_index < view->line_count; line_index++) {
+            const TILE_LINE *line = &view->lines[line_index];
+            if (line->y2 - view->offset < 0 || line->y1 - view->offset > client.bottom) continue;
+            SelectObject(context, line->dotted ? dotted : pen);
+            MoveToEx(context, line->x1, line->y1 - view->offset, NULL);
+            LineTo(context, line->x2, line->y2 - view->offset);
+        }
+        SelectObject(context, pen);
+        DeleteObject(dotted);
+    }
     for (sequence = 0; sequence < view->count; sequence++) {
         index = view->paint_order ? view->paint_order[sequence] : sequence;
         TILE_ENTRY *entry = &view->entries[index];
@@ -608,8 +945,26 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
             if (view->samples) lstrcpy(date, TEXT("Clip samples"));
             SetTextColor(context, dark_mode_get_color(COLOR_WINDOWTEXT));
             DrawText(context, date, -1, &bounds, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
-            MoveToEx(context, bounds.left + tile_scale(window, 100), (bounds.top + bounds.bottom) / 2, NULL);
-            LineTo(context, bounds.right, (bounds.top + bounds.bottom) / 2);
+            {
+                int middle = (bounds.top + bounds.bottom) / 2;
+                int tip_x = bounds.left + tile_scale(window, 100);
+                int head = tile_scale(window, 10), half = tile_scale(window, 5), thick = max(1, tile_scale(window, 1));
+                POINT tip[3];
+                RECT shaft;
+                HGDIOBJ previous_pen, previous_brush;
+                SetRect(&shaft, tip_x + head, middle - thick / 2, bounds.right, middle - thick / 2 + thick);
+                FillRect(context, &shaft, category_surfaces[1]);
+                tip[0].x = tip_x;
+                tip[0].y = middle;
+                tip[1].x = tip[2].x = tip_x + head;
+                tip[1].y = middle - half;
+                tip[2].y = middle + half;
+                previous_pen = SelectObject(context, GetStockObject(NULL_PEN));
+                previous_brush = SelectObject(context, category_surfaces[1]);
+                Polygon(context, tip, 3);
+                SelectObject(context, previous_brush);
+                SelectObject(context, previous_pen);
+            }
         }
         bounds = entry->bounds;
         OffsetRect(&bounds, 0, -view->offset);
@@ -620,9 +975,16 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
         FillRect(context, &bounds, matched ? search_surface : surface);
         FrameRect(context, &bounds, dark_mode_get_brush(index == view->selected ? COLOR_HIGHLIGHT : COLOR_3DSHADOW));
         text_bounds = bounds;
-        InflateRect(&text_bounds, -tile_scale(window, 8), -tile_scale(window, 8));
+        InflateRect(&text_bounds, -tile_scale(window, 8),
+            bounds.bottom - bounds.top <= tile_scale(window, 24) ? -tile_scale(window, 2) : -tile_scale(window, 8));
         SetRect(&badge, bounds.right - tile_scale(window, 23), bounds.bottom - tile_scale(window, 23),
             bounds.right - tile_scale(window, 3), bounds.bottom - tile_scale(window, 3));
+        if (view->vertical && !view->favorites && !view->samples && show_category && entry->image == NULL) {
+            int size = tile_scale(window, 20);
+            SetRect(&badge, bounds.left + tile_scale(window, 4), (bounds.top + bounds.bottom - size) / 2,
+                bounds.left + tile_scale(window, 4) + size, (bounds.top + bounds.bottom + size) / 2);
+            text_bounds.left = badge.right + tile_scale(window, 6);
+        }
         if (view->favorites && entry->item != NULL) {
             RECT close = bounds;
             close.left = close.right - tile_scale(window, 24);
@@ -640,7 +1002,7 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
             if (large == NULL) large = CreateFont(-tile_scale(window, 28), 0, 0, 0, FW_NORMAL,
                 FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                 CLEARTYPE_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
-            previous = SelectObject(context, large);
+            previous = SelectObject(context, entry->kind == 6 ? view->font : large);
             SetTextColor(context, dark_mode_get_color(COLOR_WINDOWTEXT));
             DrawText(context, TEXT("+"), -1, &text_bounds, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             SelectObject(context, previous);

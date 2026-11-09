@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * History.c
  *
@@ -32,51 +32,79 @@
 extern OPTION_INFO option;
 
 /* Local Function Prototypes */
+static BOOL history_format_equal(DATA_INFO *d1, DATA_INFO *d2);
 static BOOL history_compare(DATA_INFO *d1, DATA_INFO *d2);
+static BOOL history_includes(DATA_INFO *item, DATA_INFO *part);
 static BOOL history_overlap_check(DATA_INFO **root, DATA_INFO *new_item);
+
+/*
+ * history_format_equal - 形式ごとのデータの比較
+ */
+static BOOL history_format_equal(DATA_INFO *d1, DATA_INFO *d2)
+{
+	BYTE *mem1, *mem2;
+	UINT size1, size2;
+	int ret;
+
+	// 形式とサイズの比較
+	if (d1->format != d2->format || d1->size != d2->size) {
+		return FALSE;
+	}
+	// メモリの比較
+	if ((mem1 = format_data_to_bytes(d1, &size1)) == NULL) {
+		mem1 = clipboard_data_to_bytes(d1, &size1);
+	}
+	if ((mem2 = format_data_to_bytes(d2, &size2)) == NULL) {
+		mem2 = clipboard_data_to_bytes(d2, &size2);
+	}
+	if (mem1 == NULL || mem2 == NULL) {
+		mem_free(&mem1);
+		mem_free(&mem2);
+		return FALSE;
+	}
+	ret = mem_cmp(mem1, size1, mem2, size2);
+	mem_free(&mem1);
+	mem_free(&mem2);
+	return (ret == 0) ? TRUE : FALSE;
+}
 
 /*
  * history_compare - 履歴の比較
  */
 static BOOL history_compare(DATA_INFO *d1, DATA_INFO *d2)
 {
-	BYTE *mem1, *mem2;
-	UINT size1, size2;
-	int ret;
-
 	if ((d1 = d1->child) == NULL || (d2 = d2->child) == NULL) {
 		return FALSE;
 	}
 
 	while (d1 != NULL && d2 != NULL) {
-		// 形式とサイズの比較
-		if (d1->format != d2->format || d1->size != d2->size) {
+		if (history_format_equal(d1, d2) == FALSE) {
 			return FALSE;
 		}
-		// メモリの比較
-		if ((mem1 = format_data_to_bytes(d1, &size1)) == NULL) {
-			mem1 = clipboard_data_to_bytes(d1, &size1);
-		}
-		if ((mem2 = format_data_to_bytes(d2, &size2)) == NULL) {
-			mem2 = clipboard_data_to_bytes(d2, &size2);
-		}
-		if (mem1 == NULL || mem2 == NULL) {
-			mem_free(&mem1);
-			mem_free(&mem2);
-			return FALSE;
-		}
-		ret = mem_cmp(mem1, size1, mem2, size2);
-		mem_free(&mem1);
-		mem_free(&mem2);
-
-		if (ret != 0) {
-			return FALSE;
-		}
-
 		d1 = d1->next;
 		d2 = d2->next;
 	}
 	return ((d1 == NULL && d2 == NULL) ? TRUE : FALSE);
+}
+
+/*
+ * history_includes - part の全ての形式が item に同じ内容で含まれているか
+ */
+static BOOL history_includes(DATA_INFO *item, DATA_INFO *part)
+{
+	DATA_INFO *wanted, *have;
+
+	if (part->child == NULL) {
+		return FALSE;
+	}
+	for (wanted = part->child; wanted != NULL; wanted = wanted->next) {
+		for (have = item->child; have != NULL && history_format_equal(have, wanted) == FALSE; have = have->next) {
+		}
+		if (have == NULL) {
+			return FALSE;
+		}
+	}
+	return TRUE;
 }
 
 /*
@@ -190,6 +218,25 @@ BOOL history_add(DATA_INFO **root, DATA_INFO *new_item, const BOOL overlap_check
 		*root = new_item;
 	}
 
+	return TRUE;
+}
+
+/*
+ * history_import - 更新日時を保ったまま、日時順の位置へ履歴に追加 (既存の履歴に全形式が含まれる内容は追加しない)
+ */
+BOOL history_import(DATA_INFO **root, DATA_INFO *new_item)
+{
+	DATA_INFO **link;
+
+	for (link = root; *link != NULL; link = &(*link)->next) {
+		if (history_includes(*link, new_item) == TRUE) {
+			return FALSE;
+		}
+	}
+	for (link = root; *link != NULL && CompareFileTime(&(*link)->modified, &new_item->modified) >= 0; link = &(*link)->next) {
+	}
+	new_item->next = *link;
+	*link = new_item;
 	return TRUE;
 }
 /* End of source */

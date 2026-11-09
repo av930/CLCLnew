@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * fmt_Text.c
  *

@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * ToolTip.c
  *
@@ -23,7 +23,7 @@
 #include "resource.h"
 
 /* Define */
-#define WINDOW_CLASS					TEXT("CLCLTooltip")
+#define WINDOW_CLASS					TEXT("CPCPTooltip")
 
 #define WM_TOOLTIP_SHOW					(WM_APP + 1)
 #define WM_TOOLTIP_HIDE					(WM_APP + 2)

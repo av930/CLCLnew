@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * DarkMode.c
  *
@@ -75,7 +75,7 @@
 #define SUBCLASS_ID_RADIO				7
 
 // 多重適用の防止用プロパティ
-#define DARK_MODE_PROP					TEXT("CLCLDarkMode")
+#define DARK_MODE_PROP					TEXT("CPCPDarkMode")
 
 // 標準コントロールのクラス名
 #define CLASS_EDIT						TEXT("Edit")

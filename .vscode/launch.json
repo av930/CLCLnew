@@ -2,10 +2,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "CLCL (Release x86)",
+            "name": "CPCP (Release x86)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/Release/CLCL.exe",
+            "program": "${workspaceFolder}/Release/CPCP.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -14,15 +14,15 @@
             "logging": {
                 "moduleLoad": false
             },
-            "preLaunchTask": "Build CLCL (Release x86)"
+            "preLaunchTask": "Build CPCP (Release x86)"
         },
         {
-            "name": "Build & Run CLCL (Release x86)",
+            "name": "Build & Run CPCP (Release x86)",
             "type": "node-terminal",
             "request": "launch",
             "command": "echo Build n Run 완료",
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Build & Run CLCL (Release x86)"
+            "preLaunchTask": "Build & Run CPCP (Release x86)"
         }
     ]
 }

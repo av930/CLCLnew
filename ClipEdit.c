@@ -43,7 +43,7 @@ static void editor_preview(HWND window, CLIP_EDITOR *editor)
 {
     TCHAR metadata[32];
     int selected = (int)SendDlgItemMessage(window, 303, CB_GETCURSEL, 0, 0);
-    int kind = selected >= 0 && selected < 5 ? selected + 1 : 0;
+    int kind = selected >= 0 && selected < 6 ? selected + 1 : 0;
     EnableWindow(GetDlgItem(window, 301), kind != 4 && kind != 5);
     EnableWindow(GetDlgItem(window, 308), kind != 4 && kind != 5);
     if (editor->working->plugin_string == NULL ||
@@ -131,7 +131,7 @@ static LRESULT CALLBACK editor_proc(HWND window, UINT message, WPARAM parameter,
         }
         if (LOWORD(parameter) == IDOK) {
             int selected_kind = (int)SendDlgItemMessage(window, 303, CB_GETCURSEL, 0, 0) + 1;
-            if (selected_kind == 6) selected_kind = 0;
+            if (selected_kind == 7) selected_kind = 0;
             if (selected_kind == 4 && (!editor->image || !tileview_has_image(window, editor->working))) {
                 SetDlgItemText(window, 304, TEXT("The large panel accepts images only."));
                 return 0;
@@ -195,7 +195,7 @@ DATA_INFO *clipedit_show(HINSTANCE instance, HWND owner, DATA_INFO *original, in
     HWND window, text;
     DATA_INFO *format;
     MSG message;
-    const TCHAR *sizes[] = { TEXT("192 x 48"), TEXT("192 x 96"), TEXT("384 x 96"), TEXT("192 x 192"), TEXT("96 x 192"), TEXT("Automatic") };
+    const TCHAR *sizes[] = { TEXT("200 x 48"), TEXT("200 x 96"), TEXT("408 x 96"), TEXT("200 x 200"), TEXT("96 x 200"), TEXT("408 x 24"), TEXT("Automatic") };
     int index;
     ZeroMemory(&editor, sizeof(editor));
     editor.working = original ? data_item_copy(original, FALSE, FALSE, NULL) : data_create_item(NULL, TRUE, NULL);
@@ -223,7 +223,7 @@ DATA_INFO *clipedit_show(HINSTANCE instance, HWND owner, DATA_INFO *original, in
     editor_control(window, TEXT("BUTTON"), TEXT("Cancel"), BS_PUSHBUTTON | WS_TABSTOP, IDCANCEL);
     tileview_create(instance, window, 307);
     for (index = 0; index < ARRAYSIZE(sizes); index++) SendDlgItemMessage(window, 303, CB_ADDSTRING, 0, (LPARAM)sizes[index]);
-    SendDlgItemMessage(window, 303, CB_SETCURSEL, kind >= 1 && kind <= 5 ? kind - 1 : 5, 0);
+    SendDlgItemMessage(window, 303, CB_SETCURSEL, kind >= 1 && kind <= 6 ? kind - 1 : 6, 0);
     editor.image = original != NULL;
     for (format = editor.working->child; format != NULL; format = format->next) {
         if (format->format == CF_UNICODETEXT) {

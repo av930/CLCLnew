@@ -1,8 +1,8 @@
-CLCL Ver 2.1.4
+CPCP Ver 2.1.4
 --
 
 * Introduction
-CLCL is software that keeps a history of the clipboard.
+CPCP is software that keeps a history of the clipboard.
 
 * Features
 - Multiple clipboard formats are supported.
@@ -25,23 +25,23 @@ CLCL is software that keeps a history of the clipboard.
 - Unicode support
 
 * Installation
-CLCL runs on Windows 7 and later.
+CPCP runs on Windows 7 and later.
 
-Running the downloaded file installs CLCL.
-Uninstall CLCL from Control Panel.
-Exit CLCL before uninstalling it.
+Running the downloaded file installs CPCP.
+Uninstall CPCP from Control Panel.
+Exit CPCP before uninstalling it.
 
 The data is saved in the following folder (on Windows 10):
-  C:\Users\(user name)\AppData\Local\CLCL
+  C:\Users\(user name)\AppData\Local\CPCP
 
-To save the data in the same place as CLCL.exe, set up clcl_app.ini as
-follows and then start CLCL.
+To save the data in the same place as CPCP.exe, set up cpcp_app.ini as
+follows and then start CPCP.
 
 [GENERAL]
 portable=1
 
 * Start-up
-When CLCL starts, a clip icon appears in the system tray (the area of the
+When CPCP starts, a clip icon appears in the system tray (the area of the
 taskbar where the clock is).
 Clicking this system tray icon displays the menu.
 By default, the history is displayed in the menu in ascending order.
@@ -103,7 +103,7 @@ and so on).
 	When you copy in Excel or Access, many more formats are sent to the
 	clipboard.
 
-	By default, CLCL keeps the following formats in the history:
+	By default, CPCP keeps the following formats in the history:
 		- UNICODE TEXT		- Text
 		- BITMAP		- Bitmap
 		- DROP FILE LIST	- Files
@@ -229,7 +229,7 @@ the end number is larger than the maximum number of items kept in the
 history, entries are displayed up to that maximum.
 
 * Clipboard Format
-CLCL can handle every clipboard format, but a clipboard format that is not
+CPCP can handle every clipboard format, but a clipboard format that is not
 registered is displayed as a binary dump in the Viewer.
 
 Clipboard formats are registered in "Format" in the Options. Formats
@@ -260,12 +260,12 @@ size for adding it to the history. Data larger than the limit size is not
 added to the history.
 
 For a clipboard format set to Add in the filter, setting "Do not save"
-prevents it from being saved to file when CLCL exits.
-For example, you can set CLCL up to add both text and bitmaps to the history
+prevents it from being saved to file when CPCP exits.
+For example, you can set CPCP up to add both text and bitmaps to the history
 but to save only the text.
 
 * Window
-To change the behavior of CLCL depending on the application you use, set the
+To change the behavior of CPCP depending on the application you use, set the
 window and the behavior in "Window" in the Options.
 
 Specify the title and the class name of the window; "*" can be used to match
@@ -273,7 +273,7 @@ any characters.
 For example, for Notepad:
 	Title: * - Notepad
 	Class name: Notepad
-With this setting, the behavior of CLCL changes while Notepad is active.
+With this setting, the behavior of CPCP changes while Notepad is active.
 Only one of the title and the class name needs to be entered; leaving one of
 them empty means the same as specifying only "*".
 
@@ -303,7 +303,7 @@ automatically, a paste key is sent to the window.
 By default Ctrl + V is sent to every window, but in some windows the paste
 key may be a different key.
 
-When a tool is called from a hot key, CLCL performs copy -> tool processing
+When a tool is called from a hot key, CPCP performs copy -> tool processing
 -> paste, so the copy key (Ctrl + C) is sent to the window.
 
 The copy and paste keys for each window are set in "Key" in the Options.
@@ -317,7 +317,7 @@ sent in order from the top of the list.
 
 * Tool (plug-in)
 To process the data of History or Template items, or to extend the functions
-of CLCL, set them in "Tool" in the Options.
+of CPCP, set them in "Tool" in the Options.
 
 When you select a DLL and a function name, the tool name and the execution
 timing are set automatically.
@@ -341,12 +341,12 @@ that can be registered is displayed, and you can select several of them and
 register them all at once.
 
 * Command line
-You can specify a command line when starting CLCL, to specify what it does
+You can specify a command line when starting CPCP, to specify what it does
 after starting.
-If CLCL is already running, the command is sent to the running CLCL.
+If CPCP is already running, the command is sent to the running CPCP.
 
 [Format]
-CLCL.exe [/vwnx]
+CPCP.exe [/vwnx]
 	/v Display the Viewer
 	/w Turn on Clipboard Watch
 	/n Turn off Clipboard Watch
@@ -361,7 +361,7 @@ CLCL.exe [/vwnx]
 	  from the window you are working in. 
 	- Improved the save processing performed on exit.
 	- Added UNICODE support to Binary View.
-	- Fixed CLCL so that data a password manager saves to the
+	- Fixed CPCP so that data a password manager saves to the
 	  clipboard is not kept in the history. (kashima-eyetech)
 	- Improved the wording of the English version.
 
@@ -369,7 +369,7 @@ CLCL.exe [/vwnx]
 	- Changed the system tray icon shown while the clipboard is not
 	  being watched.
 	- Improved the up and down buttons in the Options.
-	- Improved CLCL so that the main window is not shown when the menu
+	- Improved CPCP so that the main window is not shown when the menu
 	  is displayed.
 
 --

@@ -11,7 +11,7 @@ x64 package.
 .NOTES
 Requires Git, Visual Studio C++ build tools, and GitHub CLI authenticated with
 "gh auth login". The default x64 tests temporarily use the clipboard and close
-and restart running CLCL.exe processes. Use -SkipTests to omit those checks.
+and restart running CPCP.exe processes. Use -SkipTests to omit those checks.
 
 .EXAMPLE
 .\scripts\Publish-Release.cmd
@@ -130,7 +130,7 @@ try {
 
 	Write-Step 'Building Release|x64'
 	$buildArguments = @(
-		(Join-Path $root 'CLCL.sln'),
+		(Join-Path $root 'CPCP.sln'),
 		'/nologo',
 		'/v:minimal',
 		'/m:1',
@@ -143,7 +143,7 @@ try {
 		throw "x64 build failed with exit code $LASTEXITCODE."
 	}
 
-	$binaryNames = @('CLCL.exe', 'CLCLHook.dll', 'CLCLSet.exe')
+	$binaryNames = @('CPCP.exe', 'CPCPHook.dll', 'CPCPSet.exe')
 	foreach ($name in $binaryNames) {
 		$binaryPath = Join-Path $buildDirectory $name
 		if (-not (Test-Path -LiteralPath $binaryPath)) {
@@ -155,7 +155,7 @@ try {
 	$testSummary = 'Automated x64 checks were skipped.'
 	if (-not $SkipTests) {
 		Write-Step 'Running isolated x64 release checks'
-		Write-Host 'The test temporarily uses the clipboard and closes/restarts running CLCL.exe processes.' -ForegroundColor Yellow
+		Write-Host 'The test temporarily uses the clipboard and closes/restarts running CPCP.exe processes.' -ForegroundColor Yellow
 		$testScript = Join-Path $root 'tests\ReleaseX64Tests.ps1'
 		$powerShell = Join-Path $PSHOME 'powershell.exe'
 		& $powerShell -NoProfile -ExecutionPolicy Bypass -File $testScript -BuildDirectory $buildDirectory
@@ -167,11 +167,11 @@ try {
 
 	Write-Step 'Creating the release ZIP'
 	New-Item -Path $releaseDirectory -ItemType Directory -Force | Out-Null
-	$temporaryDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ('CLCL-release-' + [Guid]::NewGuid().ToString('N'))
+	$temporaryDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ('CPCP-release-' + [Guid]::NewGuid().ToString('N'))
 	New-Item -Path $temporaryDirectory -ItemType Directory -Force | Out-Null
 	$stageDirectory = Join-Path $temporaryDirectory 'package'
 	New-Item -Path $stageDirectory -ItemType Directory -Force | Out-Null
-	$packageNames = @('CLCL.exe', 'CLCLHook.dll', 'CLCLSet.exe', 'clcl_app.ini', 'LICENSE', 'read.md')
+	$packageNames = @('CPCP.exe', 'CPCPHook.dll', 'CPCPSet.exe', 'cpcp_app.ini', 'LICENSE', 'read.md')
 	foreach ($name in $packageNames) {
 		$sourceDirectory = if ($name -in $binaryNames) { $buildDirectory } else { $root }
 		$sourcePath = Join-Path $sourceDirectory $name
@@ -207,7 +207,7 @@ try {
 Windows 10/11 x64 only. Download $archiveName from Assets below.
 
 1. Extract the entire ZIP into a folder.
-2. Run CLCL.exe. Keep the included EXE and DLL files together.
+2. Run CPCP.exe. Keep the included EXE and DLL files together.
 3. Copy text or an image, press Alt+Space, and choose a clip to paste.
 
 - CapsLock+F: Favorites
@@ -218,7 +218,7 @@ The automatic Source code downloads are not executable packages. No x86 binary i
 
 ## Included files
 
-CLCL.exe, CLCLHook.dll, CLCLSet.exe, default clcl_app.ini, LICENSE, read.md. No user settings, clipboard history, or debug files are included.
+CPCP.exe, CPCPHook.dll, CPCPSet.exe, default cpcp_app.ini, LICENSE, read.md. No user settings, clipboard history, or debug files are included.
 
 ## Verification
 
@@ -227,7 +227,7 @@ Use matching x64 plugins.
 
 Copied content may be saved in clipboard history. Disable recording before copying passwords or other sensitive information.
 
-ClipMaster is a separate CLCL-based clone, originally based on CLCL by Ohno Tomoaki, distributed under the MIT License.
+ClipMaster is a separate CPCP-based clone, originally based on CPCP by Ohno Tomoaki, distributed under the MIT License.
 
 SHA-256 (ZIP): $zipHash
 "@

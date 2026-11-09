@@ -434,12 +434,12 @@ BEGIN
     BEGIN
         BLOCK "041104b0"
         BEGIN
-            VALUE "FileDescription", "CLCL"
+            VALUE "FileDescription", "CPCP"
             VALUE "FileVersion", "2.2.0.0"
-            VALUE "InternalName", "CLCL.exe"
+            VALUE "InternalName", "CPCP.exe"
             VALUE "LegalCopyright", "Copyright (C) 1996-2026 by Ohno Tomoaki. All rights reserved."
-            VALUE "OriginalFilename", "CLCL.exe"
-            VALUE "ProductName", "CLCL"
+            VALUE "OriginalFilename", "CPCP.exe"
+            VALUE "ProductName", "CPCP"
             VALUE "ProductVersion", "2.2.0.0"
         END
     END

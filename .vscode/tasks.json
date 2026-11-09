@@ -2,23 +2,23 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Kill CLCL.exe",
+      "label": "Kill CPCP.exe",
       "type": "shell",
       "command": "cmd",
       "args": [
         "/c",
-        "taskkill /F /IM CLCL.exe >nul 2>&1 & exit 0"
+        "taskkill /F /IM CPCP.exe >nul 2>&1 & exit 0"
       ],
       "presentation": {
         "reveal": "silent"
       }
     },
     {
-      "label": "Build CLCL (Release x86)",
+      "label": "Build CPCP (Release x86)",
       "type": "process",
       "command": "C:\\Program Files\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe",
       "args": [
-        "CLCL.sln",
+        "CPCP.sln",
         "/p:Configuration=Release",
         "/p:Platform=x86",
         "/m"
@@ -26,7 +26,7 @@
       "options": {
         "cwd": "${workspaceFolder}"
       },
-      "dependsOn": "Kill CLCL.exe",
+      "dependsOn": "Kill CPCP.exe",
       "problemMatcher": "$msCompile",
       "group": {
         "kind": "build",
@@ -34,12 +34,12 @@
       }
     },
     {
-      "label": "Run CLCL (Release x86)",
+      "label": "Run CPCP (Release x86)",
       "type": "shell",
       "command": "Start-Process",
       "args": [
         "-FilePath",
-        "${workspaceFolder}\\Release\\CLCL.exe",
+        "${workspaceFolder}\\Release\\CPCP.exe",
         "-WorkingDirectory",
         "${workspaceFolder}\\Release"
       ],
@@ -48,15 +48,15 @@
       }
     },
     {
-      "label": "Build & Run CLCL (Release x86)",
+      "label": "Build & Run CPCP (Release x86)",
       "type": "shell",
       "command": "echo",
       "args": [
         "Build & Run complete"
       ],
       "dependsOn": [
-        "Build CLCL (Release x86)",
-        "Run CLCL (Release x86)"
+        "Build CPCP (Release x86)",
+        "Run CPCP (Release x86)"
       ],
       "dependsOrder": "sequence",
       "problemMatcher": "$msCompile",

@@ -96,6 +96,12 @@ static HBITMAP create_image_preview(DATA_INFO *format, UINT max_width, UINT max_
 
 static int pane_scale(HWND window, int value) { return MulDiv(value, GetDpiForWindow(window), 96); }
 
+/* Moves a child without repainting it; the pane redraws everything once after a layout pass. */
+static void pane_place(HWND window, int x, int y, int width, int height)
+{
+    SetWindowPos(window, nullptr, x, y, width, height, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
+}
+
 static ULONGLONG bytes_hash(const std::vector<BYTE> &bytes)
 {
     ULONGLONG hash = 14695981039346656037ULL;
@@ -459,7 +465,7 @@ static LRESULT CALLBACK format_tile_proc(HWND window, UINT message, WPARAM param
 static HWND pane_control(HWND owner, const wchar_t *type, const wchar_t *text, DWORD style, int id)
 {
     HWND control = CreateWindowEx(lstrcmp(type, L"EDIT") == 0 ? WS_EX_CLIENTEDGE : 0, type, text,
-        WS_CHILD | WS_VISIBLE | style, 0, 0, 0, 0, owner, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
+        WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | style, 0, 0, 0, 0, owner, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
         reinterpret_cast<HINSTANCE>(GetWindowLongPtr(owner, GWLP_HINSTANCE)), nullptr);
     SendMessage(control, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
     return control;
@@ -583,19 +589,19 @@ static void symbols_layout(HWND window, SymbolsPane *pane)
     int top = margin;
     size_t symbol_index = 0;
     for (int category = 0; category < ARRAYSIZE(symbol_sets); category++) {
-        MoveWindow(pane->headings[category], margin, top - pane->offset, available, pane_scale(window, 28), TRUE);
+        pane_place(pane->headings[category], margin, top - pane->offset, available, pane_scale(window, 28));
         top += pane_scale(window, 34);
         int count = lstrlen(symbol_sets[category]);
         for (int index = 0; index < count; index++, symbol_index++) {
             int left = margin + index % columns * (size + gap);
-            MoveWindow(pane->symbols[symbol_index].window, left,
+            pane_place(pane->symbols[symbol_index].window, left,
                 top + index / columns * (size + gap) - pane->offset,
-                max(1, min(size, client.right - margin - left)), size, TRUE);
+                max(1, min(size, client.right - margin - left)), size);
         }
         top += ((count + columns - 1) / columns) * (size + gap) + margin;
     }
     int charmap_gap = pane_scale(window, 20), charmap_height = pane_scale(window, 40);
-    MoveWindow(pane->charmap_button, margin, top + charmap_gap - pane->offset, available, charmap_height, TRUE);
+    pane_place(pane->charmap_button, margin, top + charmap_gap - pane->offset, available, charmap_height);
     pane->height = top + charmap_gap + charmap_height + margin;
     SCROLLINFO scroll = { sizeof(scroll), SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL };
     scroll.nMax = max(0, pane->height - 1);
@@ -604,6 +610,7 @@ static void symbols_layout(HWND window, SymbolsPane *pane)
     SetScrollInfo(window, SB_VERT, &scroll, TRUE);
     int adjusted = GetScrollPos(window, SB_VERT);
     pane->layout = false;
+    RedrawWindow(window, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
     if (adjusted != pane->offset) { pane->offset = adjusted; symbols_layout(window, pane); }
 }
 
@@ -734,16 +741,16 @@ static void pane_layout(HWND window, PastePane *pane)
     int information_top = margin + button_height + gap;
     int status_top = information_top + pane_scale(window, 44) + gap;
     int tiles_top = status_top + pane_scale(window, 32) + gap;
-    MoveWindow(pane->extract_text, margin, margin, button_width, button_height, TRUE);
-    MoveWindow(pane->information, margin, information_top, available, pane_scale(window, 44), TRUE);
-    MoveWindow(pane->status, margin, status_top, available, pane_scale(window, 32), TRUE);
+    pane_place(pane->extract_text, margin, margin, button_width, button_height);
+    pane_place(pane->information, margin, information_top, available, pane_scale(window, 44));
+    pane_place(pane->status, margin, status_top, available, pane_scale(window, 32));
     for (size_t index = 0; index < pane->tiles.size(); index++) {
         int left = margin + static_cast<int>(index % columns) * (size + gap);
         int top = tiles_top + static_cast<int>(index / columns) * (size + gap) - pane->offset;
         HWND tile = pane->tiles[index].window;
-        MoveWindow(tile, left, top, width, size, TRUE);
-        MoveWindow(GetDlgItem(tile, 1), pane_scale(window, 8), pane_scale(window, 8), width - pane_scale(window, 16), pane_scale(window, 28), TRUE);
-        MoveWindow(GetDlgItem(tile, 2), pane_scale(window, 8), pane_scale(window, 44), width - pane_scale(window, 16), size - pane_scale(window, 56), TRUE);
+        pane_place(tile, left, top, width, size);
+        pane_place(GetDlgItem(tile, 1), pane_scale(window, 8), pane_scale(window, 8), width - pane_scale(window, 16), pane_scale(window, 28));
+        pane_place(GetDlgItem(tile, 2), pane_scale(window, 8), pane_scale(window, 44), width - pane_scale(window, 16), size - pane_scale(window, 56));
     }
     pane->height = tiles_top + static_cast<int>((pane->tiles.size() + columns - 1) / columns) * (size + gap) + margin;
     SCROLLINFO scroll = { sizeof(scroll), SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL };
@@ -753,6 +760,7 @@ static void pane_layout(HWND window, PastePane *pane)
     SetScrollInfo(window, SB_VERT, &scroll, TRUE);
     int adjusted = GetScrollPos(window, SB_VERT);
     pane->layout = false;
+    RedrawWindow(window, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
     if (adjusted != pane->offset) { pane->offset = adjusted; pane_layout(window, pane); }
 }
 

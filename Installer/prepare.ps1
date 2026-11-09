@@ -9,7 +9,7 @@
 		バージョン情報の instinfo.h を生成します。
 		Installer.vcxproj のビルド前のイベントから呼び出されます。
 	Publish
-		ビルドしたインストーラを clcl<バージョン>.exe として出力します。
+		ビルドしたインストーラを cpcp<バージョン>.exe として出力します。
 		Installer.vcxproj のビルド後のイベントから呼び出されます。
 
 	通常は build.ps1 から Visual Studio のプロジェクト経由で実行されます。
@@ -24,7 +24,7 @@ param(
 	[string]$Configuration = "Release",
 	# インストールするファイルの収集元 (省略時は <リポジトリ>\<ビルド構成>)
 	[string]$SourceDir = "",
-	# バージョン (省略時は CLCL.rc の FILEVERSION を使用)
+	# バージョン (省略時は CPCP.rc の FILEVERSION を使用)
 	[string]$Version = "",
 	# Publish: ビルドしたインストーラのパス
 	[string]$TargetPath = ""
@@ -37,21 +37,21 @@ $InstallerDir = $PSScriptRoot
 $RootDir = Split-Path -Parent $InstallerDir
 
 # バージョンの取得
-function Get-ClclVersion([string]$specified) {
+function Get-CpcpVersion([string]$specified) {
 	if (-not [string]::IsNullOrEmpty($specified)) {
 		$m = [regex]::Match($specified, '^(\d+)\.(\d+)\.(\d+)$')
 		if (-not $m.Success) {
 			throw "バージョンの指定が正しくありません (例: 2.2.0): $specified"
 		}
 	} else {
-		$rcPath = Join-Path $RootDir "CLCL.rc"
+		$rcPath = Join-Path $RootDir "CPCP.rc"
 		if (-not (Test-Path $rcPath)) {
-			throw "CLCL.rc が見つかりません: $rcPath"
+			throw "CPCP.rc が見つかりません: $rcPath"
 		}
 		$rcText = Get-Content -Path $rcPath -Raw -Encoding UTF8
 		$m = [regex]::Match($rcText, 'FILEVERSION\s+(\d+)\s*,\s*(\d+)\s*,\s*(\d+)')
 		if (-not $m.Success) {
-			throw "CLCL.rc から FILEVERSION を取得できませんでした。"
+			throw "CPCP.rc から FILEVERSION を取得できませんでした。"
 		}
 	}
 	$major = [int]$m.Groups[1].Value
@@ -62,16 +62,16 @@ function Get-ClclVersion([string]$specified) {
 		Minor    = $minor
 		Revision = $revision
 		Text     = "$major.$minor.$revision"
-		FileName = "clcl$major$minor$revision.exe"
+		FileName = "cpcp$major$minor$revision.exe"
 	}
 }
 
 # インストールするファイル (収集元のパス = インストール後のファイル名)
 function Get-TargetFiles([string]$binDir) {
 	return [ordered]@{
-		(Join-Path $binDir "CLCL.exe")        = "CLCL.exe"
-		(Join-Path $binDir "CLCLSet.exe")     = "CLCLSet.exe"
-		(Join-Path $binDir "CLCLHook.dll")    = "CLCLHook.dll"
+		(Join-Path $binDir "CPCP.exe")        = "CPCP.exe"
+		(Join-Path $binDir "CPCPSet.exe")     = "CPCPSet.exe"
+		(Join-Path $binDir "CPCPHook.dll")    = "CPCPHook.dll"
 		(Join-Path $RootDir "readme_jp.txt")  = "readme_jp.txt"
 		(Join-Path $RootDir "readme_en.txt")  = "readme_en.txt"
 		(Join-Path $RootDir "readme_de.txt")  = "readme_de.txt"
@@ -81,7 +81,7 @@ function Get-TargetFiles([string]$binDir) {
 	}
 }
 
-$ver = Get-ClclVersion $Version
+$ver = Get-CpcpVersion $Version
 
 # 相対パスは呼び出し元の作業フォルダに左右されないようにする
 if (-not [string]::IsNullOrEmpty($OutDir) -and -not [System.IO.Path]::IsPathRooted($OutDir)) {
@@ -115,15 +115,15 @@ New-Item -Path $OutDir -ItemType Directory -Force | Out-Null
 # ------------------------------------------------------------------
 $instInfo = @"
 /*
- * CLCL Installer
+ * CPCP Installer
  *
  * instinfo.h
  *
  * prepare.ps1 が生成するファイルです。直接編集しないでください。
  */
 
-#ifndef _INC_CLCL_INSTINFO_H
-#define _INC_CLCL_INSTINFO_H
+#ifndef _INC_CPCP_INSTINFO_H
+#define _INC_CPCP_INSTINFO_H
 
 #define INST_VER_MAJOR					$($ver.Major)
 #define INST_VER_MINOR					$($ver.Minor)

@@ -24,12 +24,12 @@ BEGIN
     BEGIN
         BLOCK "041104b0"
         BEGIN
-            VALUE "FileDescription", "CLCLSet"
+            VALUE "FileDescription", "CPCPSet"
             VALUE "FileVersion", "2.2.0.0"
-            VALUE "InternalName", "CLCLSet.exe"
+            VALUE "InternalName", "CPCPSet.exe"
             VALUE "LegalCopyright", "Copyright (C) 1996-2026 by Ohno Tomoaki. All rights reserved."
-            VALUE "OriginalFilename", "CLCLSet.exe"
-            VALUE "ProductName", "CLCL"
+            VALUE "OriginalFilename", "CPCPSet.exe"
+            VALUE "ProductName", "CPCP"
             VALUE "ProductVersion", "2.2.0.0"
         END
     END

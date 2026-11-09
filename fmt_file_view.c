@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * fmt_file_view.c
  *
@@ -33,7 +33,7 @@
 #define LVS_EX_INFOTIP					0x400
 #endif
 
-#define WINDOW_CLASS					TEXT("CLCLFileView")
+#define WINDOW_CLASS					TEXT("CPCPFileView")
 
 #define IDC_LIST_FILE					100
 

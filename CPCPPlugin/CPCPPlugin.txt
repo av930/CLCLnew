@@ -6,7 +6,7 @@ WM_GET_VERSION
   lParam - 0
   戻り値 - (int)バージョン
   機能:
-    CLCLのバージョンを取得します。
+    CPCPのバージョンを取得します。
 
 WM_GET_WORKPATH
   wParam - 0
@@ -14,7 +14,7 @@ WM_GET_WORKPATH
   戻り値 - 0
   機能:
     作業ディレクトリのパスを取得します。
-    初期設定では "CLCL.exeがあるディレクトリ\ユーザ名" になります。
+    初期設定では "CPCP.exeがあるディレクトリ\ユーザ名" になります。
 
 WM_GET_CLIPBOARD_WATCH
   wParam - 0

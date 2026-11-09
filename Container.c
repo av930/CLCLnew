@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * Container.c
  *
@@ -19,7 +19,7 @@
 #include "DarkMode.h"
 
 /* Define */
-#define WINDOW_CLASS					TEXT("CLCLContainer")
+#define WINDOW_CLASS					TEXT("CPCPContainer")
 
 /* Global Variables */
 

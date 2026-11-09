@@ -78,7 +78,7 @@
       <UndefineAllPreprocessorDefinitions>false</UndefineAllPreprocessorDefinitions>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_MBCS;UNICODE;OP_XP_STYLE;LC_JP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerListingLocation>.\Debug\</AssemblerListingLocation>
-      <PrecompiledHeaderOutputFile>.\Debug\CLCL.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile>.\Debug\CPCP.pch</PrecompiledHeaderOutputFile>
       <ObjectFileName>.\Debug\</ObjectFileName>
       <ProgramDataBaseFileName>.\Debug\</ProgramDataBaseFileName>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -86,7 +86,7 @@
     <Midl>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <TypeLibraryName>.\Debug\CLCL.tlb</TypeLibraryName>
+      <TypeLibraryName>.\Debug\CPCP.tlb</TypeLibraryName>
       <MkTypLibCompatible>true</MkTypLibCompatible>
       <TargetEnvironment>Win32</TargetEnvironment>
     </Midl>
@@ -96,15 +96,15 @@
     </ResourceCompile>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <OutputFile>.\Debug\CLCL.bsc</OutputFile>
+      <OutputFile>.\Debug\CPCP.bsc</OutputFile>
     </Bscmake>
     <Link>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
-      <OutputFile>.\Debug\CLCL.exe</OutputFile>
+      <OutputFile>.\Debug\CPCP.exe</OutputFile>
       <AdditionalDependencies>odbc32.lib;odbccp32.lib;Comctl32.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <ModuleDefinitionFile>.\clcl.def</ModuleDefinitionFile>
+      <ModuleDefinitionFile>.\cpcp.def</ModuleDefinitionFile>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>$(ProjectDir)\res\manifest.xml %(AdditionalManifestFiles)</AdditionalManifestFiles>
@@ -119,7 +119,7 @@
       <StringPooling>true</StringPooling>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_MBCS;OP_XP_STYLE;LC_JP;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerListingLocation>.\Release\</AssemblerListingLocation>
-      <PrecompiledHeaderOutputFile>.\Release\CLCL.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile>.\Release\CPCP.pch</PrecompiledHeaderOutputFile>
       <ObjectFileName>.\Release\</ObjectFileName>
       <ProgramDataBaseFileName>.\Release\</ProgramDataBaseFileName>
       <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
@@ -127,7 +127,7 @@
     <Midl>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <TypeLibraryName>.\Release\CLCL.tlb</TypeLibraryName>
+      <TypeLibraryName>.\Release\CPCP.tlb</TypeLibraryName>
       <MkTypLibCompatible>true</MkTypLibCompatible>
       <TargetEnvironment>Win32</TargetEnvironment>
     </Midl>
@@ -137,14 +137,14 @@
     </ResourceCompile>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <OutputFile>.\Release\CLCL.bsc</OutputFile>
+      <OutputFile>.\Release\CPCP.bsc</OutputFile>
     </Bscmake>
     <Link>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <SubSystem>Windows</SubSystem>
-      <OutputFile>.\Release\CLCL.exe</OutputFile>
+      <OutputFile>.\Release\CPCP.exe</OutputFile>
       <AdditionalDependencies>odbc32.lib;odbccp32.lib;Comctl32.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <ModuleDefinitionFile>.\clcl.def</ModuleDefinitionFile>
+      <ModuleDefinitionFile>.\cpcp.def</ModuleDefinitionFile>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>$(ProjectDir)\res\manifest.xml %(AdditionalManifestFiles)</AdditionalManifestFiles>
@@ -200,6 +200,10 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(WindowsSdkDir)Include\$(WindowsTargetPlatformVersion)\cppwinrt;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <ClCompile Include="WinClipHistory.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(WindowsSdkDir)Include\$(WindowsTargetPlatformVersion)\cppwinrt;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="Hotkey.c" />
     <ClCompile Include="Config.c" />
     <ClCompile Include="Viewer.c" />
@@ -208,14 +212,14 @@
     <ClCompile Include="Window.c" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="clcl.def" />
+    <CustomBuild Include="cpcp.def" />
     <CustomBuild Include="res\cursor.cur" />
     <CustomBuild Include="res\cursor2.cur" />
     <CustomBuild Include="res\cursor3.cur" />
     <CustomBuild Include="res\No_m.cur" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="CLCL.rc" />
+    <ResourceCompile Include="CPCP.rc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BinView.h" />
@@ -229,6 +233,7 @@
     <ClInclude Include="ClipSample.h" />
     <ClInclude Include="ClipEdit.h" />
     <ClInclude Include="PastePlus.h" />
+    <ClInclude Include="WinClipHistory.h" />
     <ClInclude Include="Hotkey.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="dpi.h" />

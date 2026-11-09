@@ -3,7 +3,7 @@
 #define APP_HOTKEY_FAVORITES 0x7F03
 #define APP_HOTKEY_PASTE 0x7F04
 /*
- * CLCL
+ * CPCP
  *
  * main.c
  *
@@ -53,8 +53,8 @@
 #include "DarkMode.h"
 #include "resource.h"
 /* Define */
-#define ERROR_TITLE						TEXT("CLCL_new - Error")
-#define MUTEX TEXT("_CLCL_New_Mutex_")
+#define ERROR_TITLE						TEXT("CPCP_new - Error")
+#define MUTEX TEXT("_CPCP_New_Mutex_")
 #define WM_TRAY_NOTIFY (WM_APP + 1000)
 #define WM_KEY_HOOK						(WM_APP + 1001)		// フック
 
@@ -2350,6 +2350,32 @@ static LRESULT CALLBACK main_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 		}
 		return save_history(hWnd, 1);
 
+	case WM_HISTORY_IMPORT:
+		// 外部の履歴 (Windows クリップボード履歴) の取り込み。lParam は古い順のアイテム列で、所有権はここで引き取る
+		{
+			DATA_INFO *di, *next;
+			int added = 0;
+
+			for (di = (DATA_INFO *)lParam; di != NULL; di = next) {
+				next = di->next;
+				di->next = NULL;
+				if (clipboard_is_confidential(di) != FALSE || clipboard_filter_formats(di) == FALSE ||
+					history_import(&history_data.child, di) == FALSE) {
+					data_free(di);
+					continue;
+				}
+				added++;
+			}
+			if (added > 0) {
+				set_tray_tooltip(hWnd);
+				if (option.history_save == 1 && option.history_always_save == 1) {
+					SendMessage(hWnd, WM_HISTORY_SAVE, 0, 0);
+				}
+				SendMessage(hWnd, WM_HISTORY_CHANGED, 0, 0);
+			}
+			return added;
+		}
+
 	case WM_REGIST_CHANGED:
 		// 登録アイテムの内容変化
 		{
@@ -2646,7 +2672,7 @@ static void copy_old_file()
 		if (!SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE, NULL, 0, tmp_path))) {
 			return;
 		}
-		lstrcat(tmp_path, TEXT("\\VirtualStore\\Program Files (x86)\\CLCL"));
+		lstrcat(tmp_path, TEXT("\\VirtualStore\\Program Files (x86)\\CPCP"));
 		wsprintf(general_ini_path, TEXT("%s\\%s"), tmp_path, GENERAL_INI);
 		if (PathFileExists(general_ini_path) == FALSE) {
 			return;
@@ -2723,7 +2749,7 @@ static void get_work_path(const HINSTANCE hInstance)
 	}
 	else {
 		if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE, NULL, 0, work_path))) {
-			lstrcat(work_path, TEXT("\\CLCL_new"));
+			lstrcat(work_path, TEXT("\\CPCP_new"));
 			CreateDirectory(work_path, NULL);
 		}
 	}
@@ -3007,7 +3033,7 @@ static BOOL history_write_file(const TCHAR *path, DATA_INFO *root, TCHAR *err_st
 	buffer = file_data_to_memory(root, &plain_data.cbData, err_str);
 	if (buffer == NULL) return FALSE;
 	plain_data.pbData = buffer;
-	if (CryptProtectData(&plain_data, TEXT("CLCL_new history"), NULL, NULL, NULL,
+	if (CryptProtectData(&plain_data, TEXT("CPCP_new history"), NULL, NULL, NULL,
 		CRYPTPROTECT_UI_FORBIDDEN, &encrypted_data) == FALSE) {
 		message_get_error(GetLastError(), err_str);
 		goto cleanup;

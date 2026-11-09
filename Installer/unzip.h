@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL Installer
+ * CPCP Installer
  *
  * unzip.h
  *
@@ -8,8 +8,8 @@
  *		nakka@nakka.com
  */
 
-#ifndef _INC_CLCL_UNZIP_H
-#define _INC_CLCL_UNZIP_H
+#ifndef _INC_CPCP_UNZIP_H
+#define _INC_CPCP_UNZIP_H
 
 /* Define */
 #define UNZIP_OK					0

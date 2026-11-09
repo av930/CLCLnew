@@ -28,6 +28,8 @@ void cm_config_defaults(OPTION_INFO *settings)
     settings->history_save = 1;
     settings->history_always_save = 1;
     settings->config_favorite_max = 50;
+    settings->config_load_clip_count = CLIP_LOAD_DEFAULT;
+    settings->config_layout = 0;
     settings->config_clear_history_boot = 0;
     settings->config_clear_clipboard_startup = 0;
     settings->config_duplicate_policy = 2;
@@ -118,7 +120,7 @@ void cm_runtime_initialize(HWND main_window)
 
 BOOL cm_runtime_message(HWND main_window, UINT message, WPARAM parameter, LPARAM data, LRESULT *result)
 {
-    HWND viewer = FindWindow(TEXT("CLCLViewer"), TEXT("ClipMaster"));
+    HWND viewer = FindWindow(TEXT("CPCPViewer"), TEXT("ClipMaster"));
     *result = 0;
     if (message == WM_CONFIG_APPLY) {
         OPTION_INFO *previous = (OPTION_INFO *)data;
@@ -210,7 +212,7 @@ void cm_runtime_show_requested(const TCHAR *command)
         return;
     }
     if (tab == 0) {
-        HWND viewer = FindWindow(TEXT("CLCLViewer"), TEXT("ClipMaster"));
+        HWND viewer = FindWindow(TEXT("CPCPViewer"), TEXT("ClipMaster"));
         if (viewer != NULL) ShowWindow(viewer, SW_SHOW);
         else SendMessage(FindWindow(MAIN_WND_CLASS, MAIN_WINDOW_TITLE), WM_COMMAND, 40002, 0);
     }

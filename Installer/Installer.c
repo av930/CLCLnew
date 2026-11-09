@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL Installer
+ * CPCP Installer
  *
  * Installer.c
  *
@@ -279,7 +279,7 @@ static BOOL write_file(const HWND hWnd, const TCHAR *path, const BYTE *buf, cons
 }
 
 /*
- * is_running - CLCLが起動中か
+ * is_running - CPCPが起動中か
  */
 static BOOL is_running(void)
 {
@@ -287,7 +287,7 @@ static BOOL is_running(void)
 }
 
 /*
- * check_running - CLCLが起動中なら終了を促す
+ * check_running - CPCPが起動中なら終了を促す
  */
 static BOOL check_running(const HWND hWnd)
 {
@@ -354,13 +354,13 @@ static BOOL reg_get_string(const HKEY hKey, const TCHAR *name, TCHAR *buf, const
 }
 
 /*
- * reg_is_clcl - CLCLの登録かどうか
+ * reg_is_cpcp - CPCPの登録かどうか
  */
-static BOOL reg_is_clcl(const TCHAR *display_name)
+static BOOL reg_is_cpcp(const TCHAR *display_name)
 {
 	int len = lstrlen(APP_NAME);
 
-	// 「CLCL」または「CLCL 」で始まる表示名を CLCL の登録とみなす
+	// 「CPCP」または「CPCP 」で始まる表示名を CPCP の登録とみなす
 	if (CompareString(LOCALE_INVARIANT, NORM_IGNORECASE,
 		display_name, len, APP_NAME, len) != CSTR_EQUAL) {
 		return FALSE;
@@ -398,7 +398,7 @@ static int reg_find_install(REG_TARGET *list, const int max_cnt, TCHAR *install_
 				continue;
 			}
 			if (reg_get_string(hSubKey, TEXT("DisplayName"), buf, MAX_PATH) == TRUE &&
-				reg_is_clcl(buf) == TRUE) {
+				reg_is_cpcp(buf) == TRUE) {
 				(list + cnt)->root = root_list[i];
 				(list + cnt)->view = view_list[i];
 				lstrcpyn((list + cnt)->subkey, subkey, BUF_SIZE);
@@ -626,7 +626,7 @@ end:
 }
 
 /*
- * exec_app - CLCLの起動
+ * exec_app - CPCPの起動
  */
 static BOOL exec_app(void)
 {
@@ -883,7 +883,7 @@ static BOOL do_install(const HWND hDlg)
 	TCHAR *old_log;
 	BOOL ret;
 
-	// CLCLが起動中なら終了を促す
+	// CPCPが起動中なら終了を促す
 	if (check_running(hDlg) == FALSE) {
 		return FALSE;
 	}
@@ -1167,7 +1167,7 @@ static INT_PTR CALLBACK dlg_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lPar
 
 		case IDOK:
 			if (install_end == TRUE) {
-				// 確認してCLCLを起動
+				// 確認してCPCPを起動
 				if (IsDlgButtonChecked(hDlg, IDC_CHECK_RUN) == BST_CHECKED &&
 					exec_app() == FALSE) {
 					msg_box(hDlg, IDS_ERR_RUN, MB_OK | MB_ICONEXCLAMATION, NULL);
@@ -1329,7 +1329,7 @@ static BOOL start_uninstall(void)
 	if (msg_box(NULL, IDS_CONFIRM_UNINSTALL, MB_YESNO | MB_ICONQUESTION, NULL) != IDYES) {
 		return FALSE;
 	}
-	// CLCLが起動中なら終了を促す
+	// CPCPが起動中なら終了を促す
 	if (check_running(NULL) == FALSE) {
 		return FALSE;
 	}
@@ -1339,7 +1339,7 @@ static BOOL start_uninstall(void)
 	// 実行中のファイルを削除できるように一時フォルダから実行する
 	GetModuleFileName(NULL, self, MAX_PATH);
 	GetTempPath(MAX_PATH, temp_path);
-	wsprintf(temp_path + lstrlen(temp_path), TEXT("clcl_uninst_%08x.exe"), GetTickCount());
+	wsprintf(temp_path + lstrlen(temp_path), TEXT("cpcp_uninst_%08x.exe"), GetTickCount());
 	if (CopyFile(self, temp_path, FALSE) == FALSE) {
 		return FALSE;
 	}

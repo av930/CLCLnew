@@ -1,4 +1,4 @@
-// CLCL Installer resource script.
+// CPCP Installer resource script.
 //
 #pragma code_page(65001)
 
@@ -41,7 +41,7 @@ IDR_PAYLOAD             RCDATA                  "payload.zip"
 
 IDD_MAIN DIALOGEX 0, 0, 320, 206
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "CLCL"
+CAPTION "CPCP"
 FONT 9, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     LTEXT           "", IDC_STATIC_TITLE, 12, 10, 296, 12
@@ -81,12 +81,12 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "FileDescription", "CLCL Installer"
+            VALUE "FileDescription", "CPCP Installer"
             VALUE "FileVersion", INST_FILE_VERSION_STR
             VALUE "InternalName", INST_FILE_NAME
             VALUE "LegalCopyright", "Copyright (C) 1996-2026 by Ohno Tomoaki. All rights reserved."
             VALUE "OriginalFilename", INST_FILE_NAME
-            VALUE "ProductName", "CLCL"
+            VALUE "ProductName", "CPCP"
             VALUE "ProductVersion", INST_FILE_VERSION_STR
         END
     END
@@ -103,18 +103,18 @@ LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
 
 STRINGTABLE
 BEGIN
-    IDS_SETUP_TITLE         "CLCL セットアップ"
-    IDS_UNINSTALL_TITLE     "CLCL アンインストール"
-    IDS_HEADER              "CLCL Ver %s"
-    IDS_DESC_INSTALL        "CLCL をインストールします。\nインストール先のフォルダとオプションを指定して [インストール] をクリックしてください。"
-    IDS_DESC_UPDATE         "CLCL は既にインストールされています。\nインストール先のフォルダとオプションを確認して [更新] をクリックしてください。"
-    IDS_DESC_COMPLETE       "CLCL のインストールが完了しました。"
+    IDS_SETUP_TITLE         "CPCP セットアップ"
+    IDS_UNINSTALL_TITLE     "CPCP アンインストール"
+    IDS_HEADER              "CPCP Ver %s"
+    IDS_DESC_INSTALL        "CPCP をインストールします。\nインストール先のフォルダとオプションを指定して [インストール] をクリックしてください。"
+    IDS_DESC_UPDATE         "CPCP は既にインストールされています。\nインストール先のフォルダとオプションを確認して [更新] をクリックしてください。"
+    IDS_DESC_COMPLETE       "CPCP のインストールが完了しました。"
     IDS_FOLDER              "インストール先のフォルダ(&F):"
     IDS_BROWSE              "参照(&B)..."
     IDS_CHECK_STARTUP       "Windows のスタートアップに登録する(&S)"
     IDS_CHECK_STARTMENU     "スタートメニューにショートカットを作成する(&M)"
     IDS_CHECK_DESKTOP       "デスクトップにショートカットを作成する(&D)"
-    IDS_CHECK_RUN           "CLCL を起動する(&R)"
+    IDS_CHECK_RUN           "CPCP を起動する(&R)"
     IDS_BUTTON_INSTALL      "インストール(&I)"
     IDS_BUTTON_UPDATE       "更新(&U)"
     IDS_BUTTON_CANCEL       "キャンセル"
@@ -124,18 +124,18 @@ BEGIN
     IDS_STATUS_SHORTCUT     "ショートカットを作成しています..."
     IDS_STATUS_REGIST       "アプリの一覧に登録しています..."
     IDS_CONFIRM_CANCEL      "インストールを中止しますか?"
-    IDS_CONFIRM_UNINSTALL   "CLCL をアンインストールします。\nよろしいですか?"
+    IDS_CONFIRM_UNINSTALL   "CPCP をアンインストールします。\nよろしいですか?"
     IDS_CONFIRM_DELETE_DATA "設定と履歴のデータも削除しますか?"
-    IDS_UNINSTALL_COMPLETE  "CLCL のアンインストールが完了しました。"
+    IDS_UNINSTALL_COMPLETE  "CPCP のアンインストールが完了しました。"
     IDS_ERR_PATH_EMPTY      "インストール先のフォルダを入力してください。"
     IDS_ERR_PAYLOAD         "インストールするファイルの読み込みに失敗しました。"
     IDS_ERR_CREATE_DIR      "フォルダを作成できませんでした。\n%s"
     IDS_ERR_EXTRACT         "ファイルを展開できませんでした。\n%s"
     IDS_ERR_REGIST          "アプリの一覧に登録できませんでした。"
-    IDS_ERR_NOT_INSTALLED   "CLCL はインストールされていません。"
-    IDS_ERR_RUN             "CLCL を起動できませんでした。"
-    IDS_RUNNING             "CLCL が起動中です。\nCLCL を終了してから [再試行] をクリックしてください。"
-    IDS_FILE_LOCKED         "ファイルを更新できませんでした。\n%s\n\nCLCL が起動中の場合は、CLCL を終了してから [再試行] をクリックしてください。"
+    IDS_ERR_NOT_INSTALLED   "CPCP はインストールされていません。"
+    IDS_ERR_RUN             "CPCP を起動できませんでした。"
+    IDS_RUNNING             "CPCP が起動中です。\nCPCP を終了してから [再試行] をクリックしてください。"
+    IDS_FILE_LOCKED         "ファイルを更新できませんでした。\n%s\n\nCPCP が起動中の場合は、CPCP を終了してから [再試行] をクリックしてください。"
 END
 
 /////////////////////////////////////////////////////////////////////////////
@@ -145,18 +145,18 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
 STRINGTABLE
 BEGIN
-    IDS_SETUP_TITLE         "CLCL Setup"
-    IDS_UNINSTALL_TITLE     "CLCL Uninstall"
-    IDS_HEADER              "CLCL Ver %s"
-    IDS_DESC_INSTALL        "CLCL will be installed on your computer.\nChoose the destination folder and the options, then click [Install]."
-    IDS_DESC_UPDATE         "CLCL is already installed.\nCheck the destination folder and the options, then click [Update]."
-    IDS_DESC_COMPLETE       "CLCL has been installed successfully."
+    IDS_SETUP_TITLE         "CPCP Setup"
+    IDS_UNINSTALL_TITLE     "CPCP Uninstall"
+    IDS_HEADER              "CPCP Ver %s"
+    IDS_DESC_INSTALL        "CPCP will be installed on your computer.\nChoose the destination folder and the options, then click [Install]."
+    IDS_DESC_UPDATE         "CPCP is already installed.\nCheck the destination folder and the options, then click [Update]."
+    IDS_DESC_COMPLETE       "CPCP has been installed successfully."
     IDS_FOLDER              "&Destination folder:"
     IDS_BROWSE              "&Browse..."
     IDS_CHECK_STARTUP       "Add to Windows &startup"
     IDS_CHECK_STARTMENU     "Create a shortcut in the Start &menu"
     IDS_CHECK_DESKTOP       "Create a shortcut on the &desktop"
-    IDS_CHECK_RUN           "&Run CLCL"
+    IDS_CHECK_RUN           "&Run CPCP"
     IDS_BUTTON_INSTALL      "&Install"
     IDS_BUTTON_UPDATE       "&Update"
     IDS_BUTTON_CANCEL       "Cancel"
@@ -166,18 +166,18 @@ BEGIN
     IDS_STATUS_SHORTCUT     "Creating shortcuts..."
     IDS_STATUS_REGIST       "Registering the application..."
     IDS_CONFIRM_CANCEL      "Do you want to cancel the installation?"
-    IDS_CONFIRM_UNINSTALL   "CLCL will be uninstalled.\nAre you sure?"
+    IDS_CONFIRM_UNINSTALL   "CPCP will be uninstalled.\nAre you sure?"
     IDS_CONFIRM_DELETE_DATA "Do you also want to delete the settings and history data?"
-    IDS_UNINSTALL_COMPLETE  "CLCL has been uninstalled successfully."
+    IDS_UNINSTALL_COMPLETE  "CPCP has been uninstalled successfully."
     IDS_ERR_PATH_EMPTY      "Enter the destination folder."
     IDS_ERR_PAYLOAD         "Failed to read the files to install."
     IDS_ERR_CREATE_DIR      "Failed to create the folder.\n%s"
     IDS_ERR_EXTRACT         "Failed to extract the file.\n%s"
     IDS_ERR_REGIST          "Failed to register the application."
-    IDS_ERR_NOT_INSTALLED   "CLCL is not installed."
-    IDS_ERR_RUN             "Failed to start CLCL."
-    IDS_RUNNING             "CLCL is running.\nExit CLCL, and then click [Retry]."
-    IDS_FILE_LOCKED         "Failed to update the file.\n%s\n\nIf CLCL is running, exit CLCL and then click [Retry]."
+    IDS_ERR_NOT_INSTALLED   "CPCP is not installed."
+    IDS_ERR_RUN             "Failed to start CPCP."
+    IDS_RUNNING             "CPCP is running.\nExit CPCP, and then click [Retry]."
+    IDS_FILE_LOCKED         "Failed to update the file.\n%s\n\nIf CPCP is running, exit CPCP and then click [Retry]."
 END
 
 /////////////////////////////////////////////////////////////////////////////
@@ -187,18 +187,18 @@ LANGUAGE LANG_GERMAN, SUBLANG_GERMAN
 
 STRINGTABLE
 BEGIN
-    IDS_SETUP_TITLE         "CLCL Setup"
-    IDS_UNINSTALL_TITLE     "CLCL deinstallieren"
-    IDS_HEADER              "CLCL Ver %s"
-    IDS_DESC_INSTALL        "CLCL wird auf Ihrem Computer installiert.\nWählen Sie den Zielordner und die Optionen, und klicken Sie dann auf [Installieren]."
-    IDS_DESC_UPDATE         "CLCL ist bereits installiert.\nPrüfen Sie den Zielordner und die Optionen, und klicken Sie dann auf [Aktualisieren]."
-    IDS_DESC_COMPLETE       "CLCL wurde erfolgreich installiert."
+    IDS_SETUP_TITLE         "CPCP Setup"
+    IDS_UNINSTALL_TITLE     "CPCP deinstallieren"
+    IDS_HEADER              "CPCP Ver %s"
+    IDS_DESC_INSTALL        "CPCP wird auf Ihrem Computer installiert.\nWählen Sie den Zielordner und die Optionen, und klicken Sie dann auf [Installieren]."
+    IDS_DESC_UPDATE         "CPCP ist bereits installiert.\nPrüfen Sie den Zielordner und die Optionen, und klicken Sie dann auf [Aktualisieren]."
+    IDS_DESC_COMPLETE       "CPCP wurde erfolgreich installiert."
     IDS_FOLDER              "&Zielordner:"
     IDS_BROWSE              "&Durchsuchen..."
     IDS_CHECK_STARTUP       "Zum Windows-&Autostart hinzufügen"
     IDS_CHECK_STARTMENU     "Verknüpfung im Start&menü erstellen"
     IDS_CHECK_DESKTOP       "Verknüpfung auf dem &Desktop erstellen"
-    IDS_CHECK_RUN           "CLCL &starten"
+    IDS_CHECK_RUN           "CPCP &starten"
     IDS_BUTTON_INSTALL      "&Installieren"
     IDS_BUTTON_UPDATE       "&Aktualisieren"
     IDS_BUTTON_CANCEL       "Abbrechen"
@@ -208,18 +208,18 @@ BEGIN
     IDS_STATUS_SHORTCUT     "Verknüpfungen werden erstellt..."
     IDS_STATUS_REGIST       "Anwendung wird registriert..."
     IDS_CONFIRM_CANCEL      "Möchten Sie die Installation abbrechen?"
-    IDS_CONFIRM_UNINSTALL   "CLCL wird deinstalliert.\nSind Sie sicher?"
+    IDS_CONFIRM_UNINSTALL   "CPCP wird deinstalliert.\nSind Sie sicher?"
     IDS_CONFIRM_DELETE_DATA "Sollen auch die Einstellungen und der Verlauf gelöscht werden?"
-    IDS_UNINSTALL_COMPLETE  "CLCL wurde erfolgreich deinstalliert."
+    IDS_UNINSTALL_COMPLETE  "CPCP wurde erfolgreich deinstalliert."
     IDS_ERR_PATH_EMPTY      "Geben Sie den Zielordner an."
     IDS_ERR_PAYLOAD         "Die zu installierenden Dateien konnten nicht gelesen werden."
     IDS_ERR_CREATE_DIR      "Der Ordner konnte nicht erstellt werden.\n%s"
     IDS_ERR_EXTRACT         "Die Datei konnte nicht entpackt werden.\n%s"
     IDS_ERR_REGIST          "Die Anwendung konnte nicht registriert werden."
-    IDS_ERR_NOT_INSTALLED   "CLCL ist nicht installiert."
-    IDS_ERR_RUN             "CLCL konnte nicht gestartet werden."
-    IDS_RUNNING             "CLCL wird ausgeführt.\nBeenden Sie CLCL, und klicken Sie dann auf [Wiederholen]."
-    IDS_FILE_LOCKED         "Die Datei konnte nicht aktualisiert werden.\n%s\n\nFalls CLCL ausgeführt wird, beenden Sie CLCL und klicken Sie dann auf [Wiederholen]."
+    IDS_ERR_NOT_INSTALLED   "CPCP ist nicht installiert."
+    IDS_ERR_RUN             "CPCP konnte nicht gestartet werden."
+    IDS_RUNNING             "CPCP wird ausgeführt.\nBeenden Sie CPCP, und klicken Sie dann auf [Wiederholen]."
+    IDS_FILE_LOCKED         "Die Datei konnte nicht aktualisiert werden.\n%s\n\nFalls CPCP ausgeführt wird, beenden Sie CPCP und klicken Sie dann auf [Wiederholen]."
 END
 
 /////////////////////////////////////////////////////////////////////////////
@@ -229,18 +229,18 @@ LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
 
 STRINGTABLE
 BEGIN
-    IDS_SETUP_TITLE         "CLCL 安装程序"
-    IDS_UNINSTALL_TITLE     "卸载 CLCL"
-    IDS_HEADER              "CLCL Ver %s"
-    IDS_DESC_INSTALL        "将在您的计算机上安装 CLCL。\n请选择安装文件夹和选项，然后单击[安装]。"
-    IDS_DESC_UPDATE         "CLCL 已安装。\n请确认安装文件夹和选项，然后单击[更新]。"
-    IDS_DESC_COMPLETE       "CLCL 安装完成。"
+    IDS_SETUP_TITLE         "CPCP 安装程序"
+    IDS_UNINSTALL_TITLE     "卸载 CPCP"
+    IDS_HEADER              "CPCP Ver %s"
+    IDS_DESC_INSTALL        "将在您的计算机上安装 CPCP。\n请选择安装文件夹和选项，然后单击[安装]。"
+    IDS_DESC_UPDATE         "CPCP 已安装。\n请确认安装文件夹和选项，然后单击[更新]。"
+    IDS_DESC_COMPLETE       "CPCP 安装完成。"
     IDS_FOLDER              "安装文件夹(&F):"
     IDS_BROWSE              "浏览(&B)..."
     IDS_CHECK_STARTUP       "添加到 Windows 启动项(&S)"
     IDS_CHECK_STARTMENU     "在开始菜单中创建快捷方式(&M)"
     IDS_CHECK_DESKTOP       "在桌面上创建快捷方式(&D)"
-    IDS_CHECK_RUN           "启动 CLCL(&R)"
+    IDS_CHECK_RUN           "启动 CPCP(&R)"
     IDS_BUTTON_INSTALL      "安装(&I)"
     IDS_BUTTON_UPDATE       "更新(&U)"
     IDS_BUTTON_CANCEL       "取消"
@@ -250,18 +250,18 @@ BEGIN
     IDS_STATUS_SHORTCUT     "正在创建快捷方式..."
     IDS_STATUS_REGIST       "正在注册应用..."
     IDS_CONFIRM_CANCEL      "要取消安装吗?"
-    IDS_CONFIRM_UNINSTALL   "将卸载 CLCL。\n确定吗?"
+    IDS_CONFIRM_UNINSTALL   "将卸载 CPCP。\n确定吗?"
     IDS_CONFIRM_DELETE_DATA "是否同时删除设置和历史数据?"
-    IDS_UNINSTALL_COMPLETE  "CLCL 卸载完成。"
+    IDS_UNINSTALL_COMPLETE  "CPCP 卸载完成。"
     IDS_ERR_PATH_EMPTY      "请输入安装文件夹。"
     IDS_ERR_PAYLOAD         "读取要安装的文件失败。"
     IDS_ERR_CREATE_DIR      "无法创建文件夹。\n%s"
     IDS_ERR_EXTRACT         "无法解压文件。\n%s"
     IDS_ERR_REGIST          "无法注册应用。"
-    IDS_ERR_NOT_INSTALLED   "未安装 CLCL。"
-    IDS_ERR_RUN             "无法启动 CLCL。"
-    IDS_RUNNING             "CLCL 正在运行。\n请退出 CLCL 后单击[重试]。"
-    IDS_FILE_LOCKED         "无法更新文件。\n%s\n\n如果 CLCL 正在运行，请退出 CLCL 后单击[重试]。"
+    IDS_ERR_NOT_INSTALLED   "未安装 CPCP。"
+    IDS_ERR_RUN             "无法启动 CPCP。"
+    IDS_RUNNING             "CPCP 正在运行。\n请退出 CPCP 后单击[重试]。"
+    IDS_FILE_LOCKED         "无法更新文件。\n%s\n\n如果 CPCP 正在运行，请退出 CPCP 后单击[重试]。"
 END
 
 /////////////////////////////////////////////////////////////////////////////
@@ -271,18 +271,18 @@ LANGUAGE LANG_UKRAINIAN, SUBLANG_DEFAULT
 
 STRINGTABLE
 BEGIN
-    IDS_SETUP_TITLE         "Встановлення CLCL"
-    IDS_UNINSTALL_TITLE     "Видалення CLCL"
-    IDS_HEADER              "CLCL Ver %s"
-    IDS_DESC_INSTALL        "CLCL буде встановлено на ваш комп'ютер.\nВиберіть папку призначення та параметри, потім натисніть [Встановити]."
-    IDS_DESC_UPDATE         "CLCL уже встановлено.\nПеревірте папку призначення та параметри, потім натисніть [Оновити]."
-    IDS_DESC_COMPLETE       "CLCL успішно встановлено."
+    IDS_SETUP_TITLE         "Встановлення CPCP"
+    IDS_UNINSTALL_TITLE     "Видалення CPCP"
+    IDS_HEADER              "CPCP Ver %s"
+    IDS_DESC_INSTALL        "CPCP буде встановлено на ваш комп'ютер.\nВиберіть папку призначення та параметри, потім натисніть [Встановити]."
+    IDS_DESC_UPDATE         "CPCP уже встановлено.\nПеревірте папку призначення та параметри, потім натисніть [Оновити]."
+    IDS_DESC_COMPLETE       "CPCP успішно встановлено."
     IDS_FOLDER              "&Папка призначення:"
     IDS_BROWSE              "&Огляд..."
     IDS_CHECK_STARTUP       "Додати до &автозавантаження Windows"
     IDS_CHECK_STARTMENU     "Створити ярлик у &меню Пуск"
     IDS_CHECK_DESKTOP       "Створити ярлик на &робочому столі"
-    IDS_CHECK_RUN           "&Запустити CLCL"
+    IDS_CHECK_RUN           "&Запустити CPCP"
     IDS_BUTTON_INSTALL      "&Встановити"
     IDS_BUTTON_UPDATE       "&Оновити"
     IDS_BUTTON_CANCEL       "Скасувати"
@@ -292,16 +292,16 @@ BEGIN
     IDS_STATUS_SHORTCUT     "Створення ярликів..."
     IDS_STATUS_REGIST       "Реєстрація програми..."
     IDS_CONFIRM_CANCEL      "Скасувати встановлення?"
-    IDS_CONFIRM_UNINSTALL   "CLCL буде видалено.\nВи впевнені?"
+    IDS_CONFIRM_UNINSTALL   "CPCP буде видалено.\nВи впевнені?"
     IDS_CONFIRM_DELETE_DATA "Також видалити налаштування та історію?"
-    IDS_UNINSTALL_COMPLETE  "CLCL успішно видалено."
+    IDS_UNINSTALL_COMPLETE  "CPCP успішно видалено."
     IDS_ERR_PATH_EMPTY      "Вкажіть папку призначення."
     IDS_ERR_PAYLOAD         "Не вдалося прочитати файли для встановлення."
     IDS_ERR_CREATE_DIR      "Не вдалося створити папку.\n%s"
     IDS_ERR_EXTRACT         "Не вдалося розпакувати файл.\n%s"
     IDS_ERR_REGIST          "Не вдалося зареєструвати програму."
-    IDS_ERR_NOT_INSTALLED   "CLCL не встановлено."
-    IDS_ERR_RUN             "Не вдалося запустити CLCL."
-    IDS_RUNNING             "CLCL запущено.\nЗавершіть роботу CLCL, потім натисніть [Повторити]."
-    IDS_FILE_LOCKED         "Не вдалося оновити файл.\n%s\n\nЯкщо CLCL запущено, завершіть роботу CLCL та натисніть [Повторити]."
+    IDS_ERR_NOT_INSTALLED   "CPCP не встановлено."
+    IDS_ERR_RUN             "Не вдалося запустити CPCP."
+    IDS_RUNNING             "CPCP запущено.\nЗавершіть роботу CPCP, потім натисніть [Повторити]."
+    IDS_FILE_LOCKED         "Не вдалося оновити файл.\n%s\n\nЯкщо CPCP запущено, завершіть роботу CPCP та натисніть [Повторити]."
 END

@@ -1,5 +1,5 @@
 ﻿/*
- * CLCLHook
+ * CPCPHook
  *
  * Hook.c
  *
@@ -13,7 +13,7 @@
 #include <windows.h>
 #undef  _INC_OLE
 
-// CLCLHook.dll is not using any CRT functions.
+// CPCPHook.dll is not using any CRT functions.
 #ifndef _DEBUG
 #pragma comment(linker, "/entry:\"DllMain\"")
 #pragma comment(linker, "/nodefaultlib")

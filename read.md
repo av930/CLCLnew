@@ -4,14 +4,14 @@ ClipMaster is a Windows clipboard manager created as a clone of
 [CLCL](https://www.nakka.com/soft/clcl/) by Ohno Tomoaki. It is based on CLCL's
 source code and extends it with tile-based clipboard history, favorites,
 paste-format selection and a Symbols tab for special-character input. ClipMaster
-is a separate project, not an official CLCL release.
+is a separate project, not an official CPCP release.
 
 ## Download
 
 Windows 10/11 x64 binaries are available from
 [GitHub Releases](https://github.com/av930/CLCLnew/releases/latest).
 Download the `ClipMaster-2026.11.01-windows-x64.zip` asset, extract the entire
-archive into a folder and run `CLCL.exe`. Keep the included EXE and DLL files
+archive into a folder and run `CPCP.exe`. Keep the included EXE and DLL files
 together. Only x64 binaries are provided; the automatic source-code archives
 are not executable packages.
 
@@ -21,6 +21,7 @@ For a detailed Korean walkthrough, see the [ClipMaster user guide](guide_ko.md).
 
 - Copy text, images or files as usual.
 - Press `Alt+Space` to open clipboard history and select a clip to paste.
+- Press `load clips from windows` in the ClipManager tab to import the newest clips (default 20, editable) from the Windows clipboard history (`Win+V`, must be turned on in Windows Settings). Clips already in the history are skipped.
 - Press `CapsLock+F` to open favorites.
 - Press `CapsLock+V` to choose a paste format.
 - Select a character in the Symbols tab to insert it.
@@ -32,5 +33,5 @@ before copying passwords, tokens or other sensitive information.
 
 ## License
 
-This project is distributed under the [MIT License](LICENSE). The original CLCL
+This project is distributed under the [MIT License](LICENSE). The original CPCP
 copyright and license notices are preserved.

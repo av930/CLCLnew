@@ -5,12 +5,12 @@ Set-StrictMode -Version Latest
 if ([IntPtr]::Size -ne 8) { throw 'Run this test in 64-bit Windows PowerShell' }
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-if (-not ('ClclX64Native' -as [type])) {
+if (-not ('CpcpX64Native' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
-public static class ClclX64Native {
+public static class CpcpX64Native {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct Date { public ushort Year, Month, DayOfWeek, Day, Hour, Minute, Second, Milliseconds; }
     [StructLayout(LayoutKind.Sequential)] public struct Entry {
@@ -65,42 +65,42 @@ function Assert-X64([bool]$Condition, [string]$Message) {
 }
 function Send-X64([IntPtr]$Window, [uint32]$Message, [IntPtr]$Parameter = [IntPtr]::Zero, [IntPtr]$Data = [IntPtr]::Zero) {
     $result = [UIntPtr]::Zero
-    if ([ClclX64Native]::SendMessageTimeout($Window, $Message, $Parameter, $Data, 2, 5000, [ref]$result) -eq [IntPtr]::Zero) { throw "Message failed: $Message" }
+    if ([CpcpX64Native]::SendMessageTimeout($Window, $Message, $Parameter, $Data, 2, 5000, [ref]$result) -eq [IntPtr]::Zero) { throw "Message failed: $Message" }
     return [IntPtr][long]$result.ToUInt64()
 }
 function Wait-X64([scriptblock]$Check) {
     $timer = [Diagnostics.Stopwatch]::StartNew()
     do { $ready = & $Check } while (-not $ready -and $timer.ElapsedMilliseconds -lt 5000)
-    if (-not $ready) { throw 'Timed out waiting for CLCL' }
+    if (-not $ready) { throw 'Timed out waiting for CPCP' }
 }
 function Stop-X64([Diagnostics.Process]$Process) {
     if ($null -eq $Process -or $Process.HasExited) { return }
-    $main = [ClclX64Native]::FindWindow('CLCLNewMain', 'CLCL_new')
+    $main = [CpcpX64Native]::FindWindow('CPCPNewMain', 'CPCP_new')
     [uint32]$owner = 0
-    [void][ClclX64Native]::GetWindowThreadProcessId($main, [ref]$owner)
+    [void][CpcpX64Native]::GetWindowThreadProcessId($main, [ref]$owner)
     if ($owner -ne $Process.Id) { throw 'Refusing to close an unrelated process' }
     [void](Send-X64 $main 16)
-    if (-not $Process.WaitForExit(5000)) { throw 'CLCL did not exit normally' }
+    if (-not $Process.WaitForExit(5000)) { throw 'CPCP did not exit normally' }
 }
 function Open-X64 {
-    $process = Start-Process -FilePath (Join-Path $temporary 'CLCL.exe') -WorkingDirectory $temporary -ArgumentList '/cmshow' -PassThru
+    $process = Start-Process -FilePath (Join-Path $temporary 'CPCP.exe') -WorkingDirectory $temporary -ArgumentList '/cmshow' -PassThru
     [void]$process.WaitForInputIdle(10000)
     return $process
 }
 function Tiles-X64([int]$Id = 125) {
     [void](Send-X64 $viewer 33890 ([IntPtr][int]$(if ($Id -eq 128) { 1 } else { 0 })))
-    return ,([ClclX64Native]::Read([ClclX64Native]::GetDlgItem($viewer, $Id)))
+    return ,([CpcpX64Native]::Read([CpcpX64Native]::GetDlgItem($viewer, $Id)))
 }
 
 $BuildDirectory = (Resolve-Path -LiteralPath $BuildDirectory).Path
-foreach ($name in 'CLCL.exe','CLCLHook.dll','CLCLSet.exe') {
+foreach ($name in 'CPCP.exe','CPCPHook.dll','CPCPSet.exe') {
     $bytes = [IO.File]::ReadAllBytes((Join-Path $BuildDirectory $name))
     $offset = [BitConverter]::ToInt32($bytes, 60)
     Assert-X64 ([BitConverter]::ToUInt16($bytes, $offset + 4) -eq 0x8664) "$name is AMD64"
 }
-$existing = @(Get-Process CLCL -ErrorAction SilentlyContinue)
+$existing = @(Get-Process CPCP -ErrorAction SilentlyContinue)
 $restart = @($existing | ForEach-Object { $_.Path })
-$temporary = Join-Path ([IO.Path]::GetTempPath()) ('CLCL_x64_' + [Guid]::NewGuid().ToString('N'))
+$temporary = Join-Path ([IO.Path]::GetTempPath()) ('CPCP_x64_' + [Guid]::NewGuid().ToString('N'))
 $testProcess = $null
 $backup = New-Object Windows.Forms.DataObject
 $clipboard = [Windows.Forms.Clipboard]::GetDataObject()
@@ -113,37 +113,37 @@ if ($null -ne $clipboard) {
 try {
     foreach ($process in $existing) { Stop-X64 $process }
     [void][IO.Directory]::CreateDirectory($temporary)
-    foreach ($name in 'CLCL.exe','CLCLHook.dll','CLCLSet.exe') { Copy-Item (Join-Path $BuildDirectory $name) $temporary }
-    [IO.File]::WriteAllText((Join-Path $temporary 'clcl_app.ini'), "[GENERAL]`r`nportable=1`r`n")
-    [IO.File]::WriteAllText((Join-Path $temporary 'clcl.ini'), "[main]`r`nclipboard_watch=1`r`nshow_trayicon=0`r`n[config]`r`nstart_with_windows=0`r`n")
+    foreach ($name in 'CPCP.exe','CPCPHook.dll','CPCPSet.exe') { Copy-Item (Join-Path $BuildDirectory $name) $temporary }
+    [IO.File]::WriteAllText((Join-Path $temporary 'cpcp_app.ini'), "[GENERAL]`r`nportable=1`r`n")
+    [IO.File]::WriteAllText((Join-Path $temporary 'cpcp.ini'), "[main]`r`nclipboard_watch=1`r`nshow_trayicon=0`r`n[config]`r`nstart_with_windows=0`r`n")
     $testProcess = Open-X64
-    Wait-X64 { [ClclX64Native]::GetDlgItem([ClclX64Native]::FindWindow('CLCLViewer', 'ClipMaster'),120) -ne [IntPtr]::Zero }
-    $main = [ClclX64Native]::FindWindow('CLCLNewMain', 'CLCL_new')
-    $viewer = [ClclX64Native]::FindWindow('CLCLViewer', 'ClipMaster')
-    Assert-X64 ((Send-X64 ([ClclX64Native]::GetDlgItem($viewer, 120)) 4868).ToInt64() -eq 6) 'Six tabs are available'
-    $symbols = [ClclX64Native]::GetDlgItem($viewer, 132)
+    Wait-X64 { [CpcpX64Native]::GetDlgItem([CpcpX64Native]::FindWindow('CPCPViewer', 'ClipMaster'),120) -ne [IntPtr]::Zero }
+    $main = [CpcpX64Native]::FindWindow('CPCPNewMain', 'CPCP_new')
+    $viewer = [CpcpX64Native]::FindWindow('CPCPViewer', 'ClipMaster')
+    Assert-X64 ((Send-X64 ([CpcpX64Native]::GetDlgItem($viewer, 120)) 4868).ToInt64() -eq 6) 'Six tabs are available'
+    $symbols = [CpcpX64Native]::GetDlgItem($viewer, 132)
     Assert-X64 ($symbols -ne [IntPtr]::Zero) 'Symbols has an independent pane'
-    Assert-X64 ([ClclX64Native]::GetDlgItem([ClclX64Native]::GetDlgItem($viewer, 129), 102) -eq [IntPtr]::Zero) 'PastePlus has no symbol category selector'
+    Assert-X64 ([CpcpX64Native]::GetDlgItem([CpcpX64Native]::GetDlgItem($viewer, 129), 102) -eq [IntPtr]::Zero) 'PastePlus has no symbol category selector'
     $symbolCount = 0
     for ($identifier = 2000; $identifier -lt 2124; $identifier++) {
-        if ([ClclX64Native]::GetDlgItem($symbols, $identifier) -ne [IntPtr]::Zero) { $symbolCount++ }
+        if ([CpcpX64Native]::GetDlgItem($symbols, $identifier) -ne [IntPtr]::Zero) { $symbolCount++ }
     }
     Assert-X64 ($symbolCount -eq 124) 'All 124 symbols are expanded in the Symbols tab'
-    $charmapButton = [ClclX64Native]::GetDlgItem($symbols, 4000)
+    $charmapButton = [CpcpX64Native]::GetDlgItem($symbols, 4000)
     Assert-X64 ($charmapButton -ne [IntPtr]::Zero) 'Character Map button is available'
     $label = New-Object Text.StringBuilder 80
-    [void][ClclX64Native]::SendMessageText($charmapButton, 13, [IntPtr]$label.Capacity, $label)
+    [void][CpcpX64Native]::SendMessageText($charmapButton, 13, [IntPtr]$label.Capacity, $label)
     Assert-X64 ($label.ToString() -eq 'Open Character Map (default Wingdings)') 'Character Map button label is correct'
-    $style = [ClclX64Native]::GetWindowLongPtr($charmapButton, -16).ToInt64()
+    $style = [CpcpX64Native]::GetWindowLongPtr($charmapButton, -16).ToInt64()
     Assert-X64 (($style -band 0xF) -eq 0xB) 'Character Map button uses custom orange drawing'
-    $symbolButton = [ClclX64Native]::GetDlgItem($symbols, 2000)
-    $symbolBounds = [ClclX64Native+Rect]::new()
-    Assert-X64 ([ClclX64Native]::GetWindowRect($symbolButton, [ref]$symbolBounds)) 'Symbol button bounds are available'
-    $dpi = [ClclX64Native]::GetDpiForWindow($symbolButton)
-    $lastSymbolBounds = [ClclX64Native+Rect]::new()
-    $charmapBounds = [ClclX64Native+Rect]::new()
-    [void][ClclX64Native]::GetWindowRect([ClclX64Native]::GetDlgItem($symbols, 2123), [ref]$lastSymbolBounds)
-    [void][ClclX64Native]::GetWindowRect($charmapButton, [ref]$charmapBounds)
+    $symbolButton = [CpcpX64Native]::GetDlgItem($symbols, 2000)
+    $symbolBounds = [CpcpX64Native+Rect]::new()
+    Assert-X64 ([CpcpX64Native]::GetWindowRect($symbolButton, [ref]$symbolBounds)) 'Symbol button bounds are available'
+    $dpi = [CpcpX64Native]::GetDpiForWindow($symbolButton)
+    $lastSymbolBounds = [CpcpX64Native+Rect]::new()
+    $charmapBounds = [CpcpX64Native+Rect]::new()
+    [void][CpcpX64Native]::GetWindowRect([CpcpX64Native]::GetDlgItem($symbols, 2123), [ref]$lastSymbolBounds)
+    [void][CpcpX64Native]::GetWindowRect($charmapButton, [ref]$charmapBounds)
     $minimumGap = [int][Math]::Floor(40 * $dpi / 96.0)
     Assert-X64 (($charmapBounds.Top - $lastSymbolBounds.Bottom) -ge $minimumGap) 'Character Map button has 20px of added top spacing'
     $expectedButtonSize = [int][Math]::Round(66 * $dpi / 96.0)
@@ -151,12 +151,12 @@ try {
         ($symbolBounds.Bottom - $symbolBounds.Top) -eq $expectedButtonSize) 'Symbol buttons are 1.5 times larger'
     $font = Send-X64 $symbolButton 49
     $fontData = New-Object byte[] 92
-    Assert-X64 ([ClclX64Native]::GetObjectData($font, $fontData.Length, $fontData) -eq $fontData.Length) 'Symbol font metrics are available'
+    Assert-X64 ([CpcpX64Native]::GetObjectData($font, $fontData.Length, $fontData) -eq $fontData.Length) 'Symbol font metrics are available'
     $fontHeight = [BitConverter]::ToInt32($fontData, 0)
     $expectedFontHeight = -[int][Math]::Round(24 * $dpi / 72.0)
     Assert-X64 ($fontHeight -eq $expectedFontHeight) 'Symbol glyphs use a 24-point font'
-    $textMargin = [ClclX64Native+Rect]::new()
-    [void][ClclX64Native]::SendMessage($symbolButton, 0x1605, [IntPtr]::Zero, [ref]$textMargin)
+    $textMargin = [CpcpX64Native+Rect]::new()
+    [void][CpcpX64Native]::SendMessage($symbolButton, 0x1605, [IntPtr]::Zero, [ref]$textMargin)
     Assert-X64 ($textMargin.Left -eq 0 -and $textMargin.Top -eq 0 -and
         $textMargin.Right -eq 0 -and $textMargin.Bottom -eq 0) 'Symbol button text margins are reduced to zero'
     [Windows.Forms.Clipboard]::SetDataObject('x64 baseline ' + [Guid]::NewGuid(), $true, 10, 100)
@@ -177,11 +177,11 @@ try {
     $history = Tiles-X64
     Assert-X64 ($history[0].Width -eq 320 -and $history[0].Height -eq 160) 'Image preview works'
     $favoriteBefore = (Tiles-X64 128).Count
-    Assert-X64 ([ClclX64Native]::PostMessage($viewer,33909,[IntPtr]::Zero,$history[0].Item)) 'Favorite command accepts a 64-bit item pointer'
-    Wait-X64 { [ClclX64Native]::FindWindow('#32770','ClipMaster') -ne [IntPtr]::Zero }
-    $dialog = [ClclX64Native]::FindWindow('#32770','ClipMaster')
+    Assert-X64 ([CpcpX64Native]::PostMessage($viewer,33909,[IntPtr]::Zero,$history[0].Item)) 'Favorite command accepts a 64-bit item pointer'
+    Wait-X64 { [CpcpX64Native]::FindWindow('#32770','ClipMaster') -ne [IntPtr]::Zero }
+    $dialog = [CpcpX64Native]::FindWindow('#32770','ClipMaster')
     [uint32]$owner = 0
-    [void][ClclX64Native]::GetWindowThreadProcessId($dialog,[ref]$owner)
+    [void][CpcpX64Native]::GetWindowThreadProcessId($dialog,[ref]$owner)
     Assert-X64 ($owner -eq $testProcess.Id) 'Favorite confirmation belongs to the isolated test'
     [void](Send-X64 $dialog 273 ([IntPtr]1))
     Wait-X64 { (Tiles-X64 128).Count -eq $favoriteBefore + 1 }
@@ -191,9 +191,9 @@ try {
     [void](Send-X64 $main 32875 ([IntPtr]1))
     Stop-X64 $testProcess
     $testProcess = Open-X64
-    Wait-X64 { [ClclX64Native]::GetDlgItem([ClclX64Native]::FindWindow('CLCLViewer', 'ClipMaster'),120) -ne [IntPtr]::Zero }
-    $main = [ClclX64Native]::FindWindow('CLCLNewMain', 'CLCL_new')
-    $viewer = [ClclX64Native]::FindWindow('CLCLViewer', 'ClipMaster')
+    Wait-X64 { [CpcpX64Native]::GetDlgItem([CpcpX64Native]::FindWindow('CPCPViewer', 'ClipMaster'),120) -ne [IntPtr]::Zero }
+    $main = [CpcpX64Native]::FindWindow('CPCPNewMain', 'CPCP_new')
+    $viewer = [CpcpX64Native]::FindWindow('CPCPViewer', 'ClipMaster')
     Assert-X64 ((Tiles-X64).Count -eq $historyCount) 'History survives restart'
     Assert-X64 ((Tiles-X64 128).Count -eq $favoriteCount) 'Favorites survive restart'
     Write-Output '[OKAY] All isolated x64 release tests passed'

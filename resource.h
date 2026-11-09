@@ -1,6 +1,6 @@
 ﻿//{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ で生成されたインクルード ファイル。
-// CLCL.rc で使用
+// CPCP.rc で使用
 //
 #define IDS_MENU_REGIST                 1
 #define IDS_MENU_CANCEL                 2

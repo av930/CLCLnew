@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * Ini.c
  *
@@ -197,6 +197,8 @@ BOOL ini_get_option(TCHAR *err_str)
 	if (!option.config_history_limit_enabled && !option.config_history_days_enabled) option.config_history_days_enabled = 1;
 	option.config_history_days = min(365, max(1, profile_get_int(TEXT("config"), TEXT("history_days"), 3, ini_path)));
 	option.config_favorite_max = min(100, max(10, profile_get_int(TEXT("config"), TEXT("favorite_max"), 50, ini_path)));
+	option.config_load_clip_count = min(CLIP_LOAD_MAX, max(1, profile_get_int(TEXT("config"), TEXT("load_clip_count"), CLIP_LOAD_DEFAULT, ini_path)));
+	option.config_layout = min(1, max(0, profile_get_int(TEXT("config"), TEXT("layout"), 0, ini_path)));
 	option.config_clear_clipboard_startup = profile_get_int(TEXT("config"), TEXT("clear_clipboard_startup"), 0, ini_path);
 	option.config_duplicate_policy = profile_get_int(TEXT("config"), TEXT("duplicate_policy"), 2, ini_path);
 	if (option.config_duplicate_policy < 0 || option.config_duplicate_policy > 2) option.config_duplicate_policy = 2;
@@ -865,6 +867,8 @@ BOOL ini_put_option(void)
 	profile_write_int(TEXT("config"), TEXT("history_days_enabled"), option.config_history_days_enabled, ini_path);
 	profile_write_int(TEXT("config"), TEXT("history_days"), option.config_history_days, ini_path);
 	profile_write_int(TEXT("config"), TEXT("favorite_max"), option.config_favorite_max, ini_path);
+	profile_write_int(TEXT("config"), TEXT("load_clip_count"), option.config_load_clip_count, ini_path);
+	profile_write_int(TEXT("config"), TEXT("layout"), option.config_layout, ini_path);
 	profile_write_int(TEXT("config"), TEXT("clear_clipboard_startup"), option.config_clear_clipboard_startup, ini_path);
 	profile_write_int(TEXT("config"), TEXT("duplicate_policy"), option.config_duplicate_policy, ini_path);
 	profile_write_string(TEXT("config"), TEXT("hotkey_clipmanager"), option.config_hotkey_clipmanager, ini_path);

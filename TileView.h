@@ -16,6 +16,7 @@ void tileview_refresh(HWND window, DATA_INFO *items);
 void tileview_search(HWND window, const TCHAR *keyword);
 void tileview_favorites(HWND window, BOOL enabled);
 void tileview_samples(HWND window, BOOL enabled);
+void tileview_layout(HWND window, BOOL vertical);
 BOOL tileview_portrait_image(HWND window, DATA_INFO *item);
 BOOL tileview_has_image(HWND window, DATA_INFO *item);
 

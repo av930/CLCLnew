@@ -1,8 +1,8 @@
-CLCL Ver 2.2.0
+CPCP Ver 2.2.0
 --
 
 * Einleitung
-CLCL ist ein Programm, das einen Verlauf der Zwischenablage führt.
+CPCP ist ein Programm, das einen Verlauf der Zwischenablage führt.
 
 * Funktionen
 - Es werden mehrere Zwischenablage-Formate unterstützt.
@@ -26,23 +26,23 @@ CLCL ist ein Programm, das einen Verlauf der Zwischenablage führt.
 - Unicode-Unterstützung
 
 * Installation
-CLCL läuft unter Windows 7 und neuer.
+CPCP läuft unter Windows 7 und neuer.
 
-Durch Ausführen der heruntergeladenen Datei wird CLCL installiert.
-Deinstalliert wird CLCL über die Systemsteuerung.
-Beenden Sie CLCL, bevor Sie es deinstallieren.
+Durch Ausführen der heruntergeladenen Datei wird CPCP installiert.
+Deinstalliert wird CPCP über die Systemsteuerung.
+Beenden Sie CPCP, bevor Sie es deinstallieren.
 
 Die Daten werden im folgenden Ordner gespeichert (unter Windows 10):
-  C:\Users\(Benutzername)\AppData\Local\CLCL
+  C:\Users\(Benutzername)\AppData\Local\CPCP
 
-Um die Daten am selben Ort wie CLCL.exe zu speichern, richten Sie
-clcl_app.ini wie folgt ein und starten Sie dann CLCL.
+Um die Daten am selben Ort wie CPCP.exe zu speichern, richten Sie
+cpcp_app.ini wie folgt ein und starten Sie dann CPCP.
 
 [GENERAL]
 portable=1
 
 * Start
-Wenn CLCL gestartet wird, erscheint ein Klammer-Symbol im Infobereich der
+Wenn CPCP gestartet wird, erscheint ein Klammer-Symbol im Infobereich der
 Taskleiste (dem Bereich, in dem die Uhr angezeigt wird).
 Ein Klick auf dieses Symbol zeigt das Menü an.
 Standardmäßig wird der Verlauf im Menü in aufsteigender Reihenfolge
@@ -109,7 +109,7 @@ Zwischenablage.
 	Beim Kopieren in Excel oder Access werden noch viel mehr Formate
 	an die Zwischenablage gesendet.
 
-	Standardmäßig nimmt CLCL die folgenden Formate in den Verlauf auf:
+	Standardmäßig nimmt CPCP die folgenden Formate in den Verlauf auf:
 		- UNICODE TEXT		- Text
 		- BITMAP		- Bitmap
 		- DROP FILE LIST	- Dateien
@@ -252,7 +252,7 @@ die Endnummer größer als die maximale Anzahl der im Verlauf behaltenen
 Einträge, werden die Einträge bis zu diesem Maximum angezeigt.
 
 * Zwischenablage-Format
-CLCL kann mit jedem Zwischenablage-Format umgehen, aber ein nicht
+CPCP kann mit jedem Zwischenablage-Format umgehen, aber ein nicht
 registriertes Zwischenablage-Format wird in der Anzeige als Binärdaten
 dargestellt.
 
@@ -290,12 +290,12 @@ den Verlauf aufgenommen.
 
 Für ein Zwischenablage-Format, das im Filter auf "In Verlauf aufnehmen"
 gesetzt ist, verhindert die Einstellung "Nicht speichern", dass es beim
-Beenden von CLCL in einer Datei gespeichert wird.
-Sie können CLCL zum Beispiel so einrichten, dass sowohl Text als auch
+Beenden von CPCP in einer Datei gespeichert wird.
+Sie können CPCP zum Beispiel so einrichten, dass sowohl Text als auch
 Bitmaps in den Verlauf aufgenommen, aber nur der Text gespeichert wird.
 
 * Fenster
-Um das Verhalten von CLCL abhängig von der verwendeten Anwendung zu ändern,
+Um das Verhalten von CPCP abhängig von der verwendeten Anwendung zu ändern,
 legen Sie das Fenster und das Verhalten unter "Fenster" in den
 Einstellungen fest.
 
@@ -304,7 +304,7 @@ Platzhalter für beliebige Zeichen verwendet werden.
 Zum Beispiel für den Editor:
 	Titel: * - Editor
 	Klassenname: Notepad
-Mit dieser Einstellung ändert sich das Verhalten von CLCL, solange der
+Mit dieser Einstellung ändert sich das Verhalten von CPCP, solange der
 Editor aktiv ist.
 Es muss nur eines von beiden, Titel oder Klassenname, eingegeben werden;
 eines davon leer zu lassen, bedeutet dasselbe wie die Angabe von nur "*".
@@ -339,7 +339,7 @@ Fenster gesendet.
 Standardmäßig wird an jedes Fenster Strg + V gesendet, aber in manchen
 Fenstern kann die Einfüge-Taste eine andere sein.
 
-Wenn ein Tool über einen Hotkey aufgerufen wird, führt CLCL Kopieren ->
+Wenn ein Tool über einen Hotkey aufgerufen wird, führt CPCP Kopieren ->
 Tool-Verarbeitung -> Einfügen aus, sodass die Kopier-Taste (Strg + C) an
 das Fenster gesendet wird.
 
@@ -357,7 +357,7 @@ gesendet.
 
 * Tool (Plug-in)
 Um die Daten von Verlaufs- oder Vorlageneinträgen zu verarbeiten oder die
-Funktionen von CLCL zu erweitern, richten Sie diese unter "Tool" in den
+Funktionen von CPCP zu erweitern, richten Sie diese unter "Tool" in den
 Einstellungen ein.
 
 Wenn Sie eine DLL und einen Funktionsnamen auswählen, werden der Tool-Name
@@ -383,12 +383,12 @@ wird die Liste der Tools angezeigt, die registriert werden können, und Sie
 können mehrere davon auswählen und auf einmal registrieren.
 
 * Befehlszeile
-Sie können beim Start von CLCL eine Befehlszeile angeben, um festzulegen,
+Sie können beim Start von CPCP eine Befehlszeile angeben, um festzulegen,
 was nach dem Start geschehen soll.
-Läuft CLCL bereits, wird der Befehl an das laufende CLCL gesendet.
+Läuft CPCP bereits, wird der Befehl an das laufende CPCP gesendet.
 
 [Format]
-CLCL.exe [/vwnx]
+CPCP.exe [/vwnx]
 	/v Anzeige öffnen
 	/w Zwischenablage-Überwachung einschalten
 	/n Zwischenablage-Überwachung ausschalten
@@ -404,7 +404,7 @@ CLCL.exe [/vwnx]
 	  dem Sie gerade arbeiten, den Fokus zu entziehen.
 	- Speichervorgang beim Beenden verbessert.
 	- UNICODE-Unterstützung zur Binärdaten-Anzeige hinzugefügt.
-	- CLCL so korrigiert, dass Daten, die ein Passwort-Manager in der
+	- CPCP so korrigiert, dass Daten, die ein Passwort-Manager in der
 	  Zwischenablage ablegt, nicht im Verlauf behalten werden.
 	  (kashima-eyetech)
 	- Formulierungen der englischen Version verbessert.
@@ -414,7 +414,7 @@ CLCL.exe [/vwnx]
 	  Zwischenablage nicht überwacht wird.
 	- Schaltflächen zum Verschieben nach oben und unten in den
 	  Einstellungen verbessert.
-	- CLCL so verbessert, dass das Hauptfenster nicht angezeigt wird,
+	- CPCP so verbessert, dass das Hauptfenster nicht angezeigt wird,
 	  während das Menü dargestellt wird.
 
 --

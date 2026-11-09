@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL Installer
+ * CPCP Installer
  *
  * Installer.h
  *
@@ -8,24 +8,24 @@
  *		nakka@nakka.com
  */
 
-#ifndef _INC_CLCL_INSTALLER_H
-#define _INC_CLCL_INSTALLER_H
+#ifndef _INC_CPCP_INSTALLER_H
+#define _INC_CPCP_INSTALLER_H
 
 /* Define */
 #define BUF_SIZE						256
 
-#define APP_NAME						TEXT("CLCL")
-#define APP_EXE							TEXT("CLCL.exe")
+#define APP_NAME						TEXT("CPCP")
+#define APP_EXE							TEXT("CPCP.exe")
 #define APP_PUBLISHER					TEXT("Ohno Tomoaki")
 #define APP_URL							TEXT("https://www.nakka.com/soft/clcl/")
-#define APP_DATA_FOLDER					TEXT("CLCL")
+#define APP_DATA_FOLDER					TEXT("CPCP")
 
-// CLCL本体の常駐確認用
-#define MAIN_WND_CLASS					TEXT("CLCLMain")
-#define MAIN_WINDOW_TITLE				TEXT("CLCL")
+// CPCP本体の常駐確認用
+#define MAIN_WND_CLASS					TEXT("CPCPMain")
+#define MAIN_WINDOW_TITLE				TEXT("CPCP")
 
 // インストール先の既定フォルダ名
-#define DEFAULT_FOLDER					TEXT("CLCL")
+#define DEFAULT_FOLDER					TEXT("CPCP")
 // インストール先に配置するアンインストーラ
 #define UNINSTALL_EXE					TEXT("uninstall.exe")
 // インストールしたファイルの一覧
@@ -35,7 +35,7 @@
 
 // アプリの一覧への登録先
 #define UNINSTALL_KEY					TEXT("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall")
-#define UNINSTALL_SUBKEY				TEXT("CLCL")
+#define UNINSTALL_SUBKEY				TEXT("CPCP")
 
 // コマンドラインオプション
 #define CMD_UNINSTALL					TEXT("/uninstall")

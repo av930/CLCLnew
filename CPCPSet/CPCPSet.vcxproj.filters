@@ -15,10 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CLCLSet.c">
+    <ClCompile Include="CPCPSet.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ResourceCompile Include="CLCLSet.rc">
+    <ResourceCompile Include="CPCPSet.rc">
       <Filter>Source Files</Filter>
     </ResourceCompile>
     <ClInclude Include="..\General.h">

@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * ViewerOLEDnD.c
  *
@@ -31,7 +31,7 @@
 #include "ViewerDnD.h"
 
 /* Define */
-#define ERROR_TITLE						TEXT("CLCL - Error")
+#define ERROR_TITLE						TEXT("CPCP - Error")
 
 /* Global Variables */
 static HTREEITEM drag_item;

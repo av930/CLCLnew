@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * Viewer.c
  *
@@ -56,11 +56,12 @@
 #include "PastePlus.h"
 #include "Hotkey.h"
 #include "Config.h"
+#include "WinClipHistory.h"
 
 #include "resource.h"
 
 /* Define */
-#define WINDOW_CLASS					TEXT("CLCLViewer")
+#define WINDOW_CLASS					TEXT("CPCPViewer")
 #define WINDOW_TITLE					TEXT("ClipMaster")
 #define ID_CLIPMASTER_TABS 120
 #define ID_CLIPMASTER_SETTINGS 121
@@ -75,9 +76,11 @@
 #define ID_CLIPMASTER_SEARCH_LABEL 130
 #define ID_CLIPMASTER_SAMPLES 131
 #define ID_CLIPMASTER_SYMBOLS 132
+#define ID_CLIPMASTER_LOAD 133
+#define ID_CLIPMASTER_LOAD_COUNT 134
 #define ID_CLIPMASTER_FIELD 5100
 #define CLIPMASTER_SETTINGS_HEIGHT settings_height
-#define ERROR_TITLE						TEXT("CLCL - Error")
+#define ERROR_TITLE						TEXT("CPCP - Error")
 
 // タイマーID
 #define TIMER_SEP						1
@@ -2418,101 +2421,156 @@ static const CLIPMASTER_SETTING clipmaster_settings[] = {
 	{ TEXT("프로그램 전환 시 트레이로 감춤"), FIELD_OFFSET(OPTION_INFO, config_hide_tray_on_switch), 0, 0 }
 };
 
+static void settings_place(HWND panel, int dpi, int offset, int id, int x, int y, int w, int h)
+{
+	HWND control = GetDlgItem(panel, id);
+	if (control == NULL) return;
+	SetWindowPos(control, NULL, MulDiv(x, dpi, 96), MulDiv(y, dpi, 96) - offset, max(1, MulDiv(w, dpi, 96)),
+		max(1, MulDiv(h, dpi, 96)), SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
+}
+
+static void settings_number(HWND panel, int dpi, int offset, int id, int x, int y, int w)
+{
+	settings_place(panel, dpi, offset, 6200 + id, x, y + 3, w - 104, 24);
+	settings_place(panel, dpi, offset, ID_CLIPMASTER_FIELD + id, x + w - 96, y, 68, 24);
+	settings_place(panel, dpi, offset, 6300 + id, x + w - 24, y + 3, 24, 24);
+}
+
+/* Each block places one settings group at (x, y) with width w and returns its height. */
+static int settings_block_basic(HWND panel, int dpi, int offset, int x, int y, int w)
+{
+	settings_place(panel, dpi, offset, 6000, x, y, w, 168);
+	settings_number(panel, dpi, offset, 0, x + 12, y + 26, w - 24);
+	settings_number(panel, dpi, offset, 1, x + 12, y + 54, w - 24);
+	settings_place(panel, dpi, offset, 5102, x + 12, y + 82, w - 24, 24);
+	settings_place(panel, dpi, offset, 5460, x + 12, y + 110, w - 24, 24);
+	settings_place(panel, dpi, offset, 5461, x + 12, y + 134, w - 24, 24);
+	return 168;
+}
+
+static int settings_block_history(HWND panel, int dpi, int offset, int x, int y, int w)
+{
+	settings_place(panel, dpi, offset, 6001, x, y, w, 252);
+	settings_place(panel, dpi, offset, 5103, x + 12, y + 26, w - 128, 24);
+	settings_place(panel, dpi, offset, 5104, x + w - 108, y + 26, 68, 24);
+	settings_place(panel, dpi, offset, 6304, x + w - 36, y + 29, 24, 24);
+	settings_place(panel, dpi, offset, 5105, x + 12, y + 54, w - 128, 24);
+	settings_place(panel, dpi, offset, 5106, x + w - 108, y + 54, 68, 24);
+	settings_place(panel, dpi, offset, 6306, x + w - 36, y + 57, 24, 24);
+	settings_number(panel, dpi, offset, 7, x + 12, y + 82, w - 24);
+	settings_place(panel, dpi, offset, 5108, x + 12, y + 110, w - 24, 24);
+	settings_place(panel, dpi, offset, 6450, x + 12, y + 140, w - 24, 22);
+	settings_place(panel, dpi, offset, 5410, x + 12, y + 164, w - 24, 24);
+	settings_place(panel, dpi, offset, 5412, x + 12, y + 188, w - 24, 24);
+	settings_place(panel, dpi, offset, 5411, x + 12, y + 212, w - 24, 24);
+	return 252;
+}
+
+static int settings_block_hotkeys(HWND panel, int dpi, int offset, int x, int y, int w)
+{
+	int index;
+	settings_place(panel, dpi, offset, 6002, x, y, w, 184);
+	for (index = 0; index < 4; index++) {
+		settings_place(panel, dpi, offset, 6400 + index, x + 12, y + 26 + index * 28, 112, 24);
+		settings_place(panel, dpi, offset, 5400 + index, x + 132, y + 24 + index * 28, w - 144, 24);
+	}
+	settings_place(panel, dpi, offset, 6430, x + 12, y + 140, w - 128, 24);
+	settings_place(panel, dpi, offset, 5430, x + w - 108, y + 138, 68, 24);
+	settings_place(panel, dpi, offset, 6431, x + w - 36, y + 141, 24, 24);
+	return 184;
+}
+
+static int settings_block_exclude(HWND panel, int dpi, int offset, int x, int y, int w)
+{
+	int index;
+	settings_place(panel, dpi, offset, 6003, x, y, w, 116);
+	for (index = 10; index <= 15; index++) {
+		settings_place(panel, dpi, offset, 5100 + index, x + 12 + ((index - 10) % 2) * ((w - 24) / 2),
+			y + 26 + ((index - 10) / 2) * 28, (w - 24) / 2, 24);
+	}
+	return 116;
+}
+
+static int settings_block_handler(HWND panel, int dpi, int offset, int x, int y, int w)
+{
+	int index;
+	int label_width = min(164, (w - 24) / 2);
+	settings_place(panel, dpi, offset, 6004, x, y, w, 164);
+	settings_place(panel, dpi, offset, 5116, x + 12, y + 26, w - 24, 24);
+	for (index = 0; index < 3; index++) {
+		settings_place(panel, dpi, offset, 6440 + index, x + 12, y + 58 + index * 30, label_width, 24);
+		settings_place(panel, dpi, offset, 5440 + index, x + 20 + label_width, y + 54 + index * 30, w - label_width - 32, 24);
+	}
+	return 164;
+}
+
+static int settings_block_program(HWND panel, int dpi, int offset, int x, int y, int w)
+{
+	int index;
+	settings_place(panel, dpi, offset, 6005, x, y, w, 132);
+	for (index = 17; index < 20; index++) {
+		settings_place(panel, dpi, offset, ID_CLIPMASTER_FIELD + index, x + 12, y + 26 + (index - 17) * 30, w - 24, 24);
+	}
+	return 132;
+}
+
 static void viewer_settings_layout(HWND panel)
 {
+	typedef int (*SETTINGS_BLOCK)(HWND, int, int, int, int, int);
+	static const SETTINGS_BLOCK blocks[6] = { settings_block_basic, settings_block_history, settings_block_hotkeys,
+		settings_block_exclude, settings_block_handler, settings_block_program };
+	/* Column of each block for 1, 2 and 3 columns. */
+	static const int assignment[3][6] = { { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 1, 1, 1 }, { 0, 0, 1, 1, 2, 2 } };
 	RECT client;
-	int index, row, column;
-	int dpi = GetDpiForWindow(panel);
+	int index, column;
+	int dpi = (int)GetDpiForWindow(panel);
 	int offset = GetScrollPos(panel, SB_VERT);
-	int width, content, left, right, column_width, top, table_width, part, footer, buttons;
-	BOOL wide;
+	int width, content, left, column_width, top, table_width, part, footer, buttons, columns;
+	int cursor[3];
 	const int actions[] = { ID_CLIPMASTER_SAVE, 5482, 5483, 5484, 5485 };
 	GetClientRect(panel, &client);
 	width = MulDiv(client.right, 96, dpi);
-	content = max(1, min(1040, width - 32));
+	content = max(1, min(1280, width - 32));
 	left = max(16, (width - content) / 2);
-	wide = content >= 720;
-	column_width = wide ? (content - 16) / 2 : content;
-	right = wide ? left + column_width + 16 : left;
-#define SETTINGS_PLACE(id, x, y, w, h) MoveWindow(GetDlgItem(panel, (id)), MulDiv((x), dpi, 96), MulDiv((y), dpi, 96) - offset, max(1, MulDiv((w), dpi, 96)), max(1, MulDiv((h), dpi, 96)), TRUE)
-#define SETTINGS_NUMBER(id, x, y, w) SETTINGS_PLACE(6200 + (id), (x), (y) + 3, (w) - 104, 24); SETTINGS_PLACE(ID_CLIPMASTER_FIELD + (id), (x) + (w) - 96, (y), 68, 24); SETTINGS_PLACE(6300 + (id), (x) + (w) - 24, (y) + 3, 24, 24)
-	SETTINGS_PLACE(6000, left, 12, column_width, 116);
-	SETTINGS_NUMBER(0, left + 12, 38, column_width - 24);
-	SETTINGS_NUMBER(1, left + 12, 66, column_width - 24);
-	SETTINGS_PLACE(5102, left + 12, 94, column_width - 24, 24);
-	SETTINGS_PLACE(6001, left, 168, column_width, 284);
-	SETTINGS_PLACE(5103, left + 12, 194, column_width - 128, 24);
-	SETTINGS_PLACE(5104, left + column_width - 108, 194, 68, 24);
-	SETTINGS_PLACE(6304, left + column_width - 36, 197, 24, 24);
-	SETTINGS_PLACE(5105, left + 12, 222, column_width - 128, 24);
-	SETTINGS_PLACE(5106, left + column_width - 108, 222, 68, 24);
-	SETTINGS_PLACE(6306, left + column_width - 36, 225, 24, 24);
-	SETTINGS_NUMBER(7, left + 12, 250, column_width - 24);
-	SETTINGS_PLACE(5108, left + 12, 278, column_width - 24, 24);
-	SETTINGS_PLACE(6450, left + 12, 308, column_width - 24, 22);
-	SETTINGS_PLACE(5410, left + 12, 332, column_width - 24, 24);
-	SETTINGS_PLACE(5412, left + 12, 356, column_width - 24, 24);
-	SETTINGS_PLACE(5411, left + 12, 380, column_width - 24, 24);
-	SETTINGS_PLACE(6002, left, 464, column_width, 184);
-	for (index = 0; index < 4; index++) {
-		SETTINGS_PLACE(6400 + index, left + 12, 490 + index * 28, 112, 24);
-		SETTINGS_PLACE(5400 + index, left + 132, 488 + index * 28, column_width - 144, 24);
+	columns = content >= 960 ? 3 : content >= 720 ? 2 : 1;
+	column_width = (content - 16 * (columns - 1)) / columns;
+	for (column = 0; column < 3; column++) cursor[column] = 12;
+	for (index = 0; index < 6; index++) {
+		column = assignment[columns - 1][index];
+		cursor[column] += blocks[index](panel, dpi, offset, left + column * (column_width + 16), cursor[column], column_width) + 12;
 	}
-	SETTINGS_PLACE(6430, left + 12, 604, column_width - 128, 24);
-	SETTINGS_PLACE(5430, left + column_width - 108, 602, 68, 24);
-	SETTINGS_PLACE(6431, left + column_width - 36, 605, 24, 24);
-	top = wide ? 12 : 660;
-	SETTINGS_PLACE(6003, right, top, column_width, 116);
-	for (index = 10; index <= 15; index++) {
-		row = (index - 10) / 2;
-		column = (index - 10) % 2;
-		SETTINGS_PLACE(5100 + index, right + 12 + column * ((column_width - 24) / 2), top + 26 + row * 28,
-			(column_width - 24) / 2, 24);
-	}
-	top += 128;
-	SETTINGS_PLACE(6004, right, top, column_width, 164);
-	SETTINGS_PLACE(5116, right + 12, top + 26, column_width - 24, 24);
-	for (index = 0; index < 3; index++) {
-		int label_width = min(164, (column_width - 24) / 2);
-		SETTINGS_PLACE(6440 + index, right + 12, top + 58 + index * 30, label_width, 24);
-		SETTINGS_PLACE(5440 + index, right + 20 + label_width, top + 54 + index * 30, column_width - label_width - 32, 24);
-	}
-	top += 176;
-	SETTINGS_PLACE(6005, right, top, column_width, 132);
-	for (index = 17; index < 20; index++) SETTINGS_PLACE(ID_CLIPMASTER_FIELD + index, right + 12, top + 26 + (index - 17) * 30, column_width - 24, 24);
-	top = max(648, top + 132) + 12;
+	top = max(cursor[0], max(cursor[1], cursor[2]));
 	settings_handler_top = top + 52;
-	SETTINGS_PLACE(6006, left, top, content, 96 + settings_handler_count * 32);
+	settings_place(panel, dpi, offset, 6006, left, top, content, 96 + settings_handler_count * 32);
 	table_width = max(1, content - 76);
 	part = table_width / 4;
 	for (column = 0; column < 3; column++) {
 		int x = left + 48 + column * (part + 8);
 		int field_width = column == 2 ? table_width - part * 2 : part;
-		SETTINGS_PLACE(5590 + column, x, top + 26, field_width, 24);
+		settings_place(panel, dpi, offset, 5590 + column, x, top + 26, field_width, 24);
 		for (index = 0; index < 16; index++) {
-			SETTINGS_PLACE(5500 + index * 3 + column, x, top + 52 + index * 32, field_width, 26);
+			settings_place(panel, dpi, offset, 5500 + index * 3 + column, x, top + 52 + index * 32, field_width, 26);
 			ShowWindow(GetDlgItem(panel, 5500 + index * 3 + column), index < settings_handler_count ? SW_SHOW : SW_HIDE);
 		}
 	}
 	for (index = 0; index < 16; index++) {
-		SETTINGS_PLACE(5700 + index, left + 12, top + 55 + index * 32, 32, 24);
+		settings_place(panel, dpi, offset, 5700 + index, left + 12, top + 55 + index * 32, 32, 24);
 		ShowWindow(GetDlgItem(panel, 5700 + index), index < settings_handler_count ? SW_SHOW : SW_HIDE);
 	}
-	SETTINGS_PLACE(5480, left + 12, top + 56 + settings_handler_count * 32, 112, 28);
-	SETTINGS_PLACE(5481, left + 132, top + 56 + settings_handler_count * 32, 112, 28);
+	settings_place(panel, dpi, offset, 5480, left + 12, top + 56 + settings_handler_count * 32, 112, 28);
+	settings_place(panel, dpi, offset, 5481, left + 132, top + 56 + settings_handler_count * 32, 112, 28);
 	EnableWindow(GetDlgItem(panel, 5480), settings_handler_count < 16);
 	EnableWindow(GetDlgItem(panel, 5481), settings_handler_count > 3);
 	footer = top + 108 + settings_handler_count * 32;
 	buttons = min(5, max(1, content / 132));
-	for (index = 0; index < 5; index++) SETTINGS_PLACE(actions[index], left + (index % buttons) * ((content + 8) / buttons),
-		footer + (index / buttons) * 40, (content - (buttons - 1) * 8) / buttons, 32);
+	for (index = 0; index < 5; index++) settings_place(panel, dpi, offset, actions[index],
+		left + (index % buttons) * ((content + 8) / buttons), footer + (index / buttons) * 40,
+		(content - (buttons - 1) * 8) / buttons, 32);
 	footer += ((5 + buttons - 1) / buttons) * 40;
-	SETTINGS_PLACE(ID_CLIPMASTER_STATUS, left, footer + 8, content, 64);
+	settings_place(panel, dpi, offset, ID_CLIPMASTER_STATUS, left, footer + 8, content, 64);
 	settings_height = footer + 88;
 	EnableWindow(GetDlgItem(panel, 5104), IsDlgButtonChecked(panel, 5103) == BST_CHECKED);
 	EnableWindow(GetDlgItem(panel, 5106), IsDlgButtonChecked(panel, 5105) == BST_CHECKED);
-#undef SETTINGS_NUMBER
-#undef SETTINGS_PLACE
 }
 
 static BOOL CALLBACK viewer_settings_set_font(HWND control, LPARAM font)
@@ -2560,6 +2618,12 @@ static LRESULT CALLBACK viewer_settings_proc(HWND panel, UINT msg, WPARAM wParam
 	RECT client;
 	UNREFERENCED_PARAMETER(subclass_id);
 	UNREFERENCED_PARAMETER(reference);
+	if (msg == WM_ERASEBKGND) {
+		/* A STATIC panel does not erase itself; stale pixels of moved controls would stay behind. */
+		GetClientRect(panel, &client);
+		FillRect((HDC)wParam, &client, dark_mode_get_brush(COLOR_BTNFACE));
+		return 1;
+	}
 	if (msg == WM_COMMAND) {
 		if (LOWORD(wParam) == 5103 || LOWORD(wParam) == 5105) viewer_settings_layout(panel);
 		return SendMessage(GetParent(panel), msg, wParam, lParam);
@@ -2596,7 +2660,7 @@ static LRESULT CALLBACK viewer_settings_proc(HWND panel, UINT msg, WPARAM wParam
 		scroll.fMask |= SIF_DISABLENOSCROLL;
 		SetScrollInfo(panel, SB_VERT, &scroll, TRUE);
 		viewer_settings_layout(panel);
-		InvalidateRect(panel, NULL, TRUE);
+		RedrawWindow(panel, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
 		return 0;
 	}
 	return DefSubclassProc(panel, msg, wParam, lParam);
@@ -2606,11 +2670,26 @@ static HWND viewer_setting_control(HWND parent, const TCHAR *class_name, const T
 	DWORD style, int identifier, int left, int top, int width, int height)
 {
 	HWND control = CreateWindowEx(lstrcmp(class_name, TEXT("EDIT")) == 0 ? WS_EX_CLIENTEDGE : 0,
-		class_name, text, WS_CHILD | WS_VISIBLE | style, Scale(left), Scale(top), Scale(width), Scale(height),
+		class_name, text, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | style, Scale(left), Scale(top), Scale(width), Scale(height),
 		parent, (HMENU)(INT_PTR)identifier, hInst, NULL);
 	HFONT font = (HFONT)GetProp(parent, TEXT("ClipMaster.SettingsFont"));
 	SendMessage(control, WM_SETFONT, (WPARAM)(font != NULL ? font : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
 	return control;
+}
+
+/* A group box keeps stale pixels of its old position when it is moved; erase it before every paint. */
+static LRESULT CALLBACK viewer_group_proc(HWND group, UINT msg, WPARAM wParam, LPARAM lParam,
+	UINT_PTR subclass_id, DWORD_PTR reference)
+{
+	UNREFERENCED_PARAMETER(subclass_id);
+	UNREFERENCED_PARAMETER(reference);
+	if (msg == WM_ERASEBKGND) {
+		RECT client;
+		GetClientRect(group, &client);
+		FillRect((HDC)wParam, &client, dark_mode_get_brush(COLOR_BTNFACE));
+		return 1;
+	}
+	return DefSubclassProc(group, msg, wParam, lParam);
 }
 
 static void viewer_create_settings(const HWND hWnd)
@@ -2626,8 +2705,10 @@ static void viewer_create_settings(const HWND hWnd)
 	settings_handler_count = option.config_handler_count;
 	SetWindowSubclass(panel, viewer_settings_proc, 1, 0);
 	viewer_settings_font(panel);
-	for (index = 0; index < ARRAYSIZE(groups); index++)
-		viewer_setting_control(panel, TEXT("BUTTON"), groups[index], BS_GROUPBOX, 6000 + index, 0, 0, 1, 1);
+	for (index = 0; index < ARRAYSIZE(groups); index++) {
+		HWND group = viewer_setting_control(panel, TEXT("BUTTON"), groups[index], BS_GROUPBOX, 6000 + index, 0, 0, 1, 1);
+		SetWindowSubclass(group, viewer_group_proc, 1, 0);
+	}
 	for (index = 0; index < ARRAYSIZE(clipmaster_settings); index++) {
 		int field = index < 9 ? index : index + 1;
 		if (field == 17) {
@@ -2670,6 +2751,14 @@ static void viewer_create_settings(const HWND hWnd)
 				0, 6300 + index, 0, 0, 1, 1);
 		}
 		top += 34;
+		if (index == 2) {
+			viewer_setting_control(panel, TEXT("BUTTON"), TEXT("unified horizontal layout"), BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,
+				5460, 16, top, 288, 24);
+			viewer_setting_control(panel, TEXT("BUTTON"), TEXT("isolated vertical layout"), BS_AUTORADIOBUTTON | WS_TABSTOP,
+				5461, 16, top + 30, 288, 24);
+			CheckRadioButton(panel, 5460, 5461, option.config_layout == 1 ? 5461 : 5460);
+			top += 34;
+		}
 		if (field == 8) {
 			const TCHAR *hotkey_names[] = { TEXT("ClipManager"), TEXT("FavoriteClips"), TEXT("Paste"), TEXT("PastePlus") };
 			const TCHAR *hotkeys[] = { option.config_hotkey_clipmanager, option.config_hotkey_favorites,
@@ -2784,6 +2873,7 @@ static BOOL viewer_save_settings(const HWND hWnd)
 	}
 	candidate.config_duplicate_policy = IsDlgButtonChecked(panel, 5411) == BST_CHECKED ? 2 :
 		IsDlgButtonChecked(panel, 5412) == BST_CHECKED ? 1 : 0;
+	candidate.config_layout = IsDlgButtonChecked(panel, 5461) == BST_CHECKED ? 1 : 0;
 	value = GetDlgItemInt(panel, 5430, &valid, FALSE);
 	if (!valid || value > 60000) {
 		SetDlgItemText(panel, ID_CLIPMASTER_STATUS, TEXT("연속 실행 간격은 0~60000ms 범위로 입력해 주세요."));
@@ -2810,6 +2900,7 @@ static BOOL viewer_save_settings(const HWND hWnd)
 		SetDlgItemText(panel, ID_CLIPMASTER_STATUS, TEXT("Could not apply settings. Check hotkey conflicts and storage permissions."));
 		return FALSE;
 	}
+	tileview_layout(GetDlgItem(hWnd, ID_CLIPMASTER_TILES), option.config_layout == 1);
 	return TRUE;
 }
 
@@ -2950,6 +3041,8 @@ static void viewer_select_tab(const HWND hWnd, int index)
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH), index == 0 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH_LABEL), index == 0 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_FIND), index == 0 ? SW_SHOW : SW_HIDE);
+	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_LOAD), index == 0 ? SW_SHOW : SW_HIDE);
+	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_LOAD_COUNT), index == 0 ? SW_SHOW : SW_HIDE);
 	ShowWindow(GetDlgItem(hWnd, ID_CLIPMASTER_PANEL), index == 5 ? SW_SHOW : SW_HIDE);
 	if (index == 4) {
 		if (sample_data == NULL) {
@@ -2973,6 +3066,26 @@ static void viewer_select_tab(const HWND hWnd, int index)
 		SetFocus(GetDlgItem(GetDlgItem(hWnd, ID_CLIPMASTER_PANEL), ID_CLIPMASTER_FIELD));
 	}
 	viewer_set_controls(hWnd);
+}
+
+/*
+ * viewer_load_clip_count - "load clip" の件数入力を 1~CLIP_LOAD_MAX に補正して設定へ保存する
+ */
+static int viewer_load_clip_count(const HWND hWnd)
+{
+	BOOL valid = FALSE;
+	UINT value = GetDlgItemInt(hWnd, ID_CLIPMASTER_LOAD_COUNT, &valid, FALSE);
+	int count = valid ? (int)min(value, (UINT)CLIP_LOAD_MAX) : option.config_load_clip_count;
+
+	count = max(1, count);
+	if (!valid || value != (UINT)count) {
+		SetDlgItemInt(hWnd, ID_CLIPMASTER_LOAD_COUNT, count, FALSE);
+	}
+	if (count != option.config_load_clip_count) {
+		option.config_load_clip_count = count;
+		ini_put_option();
+	}
+	return count;
 }
 
 static void viewer_draw_tab(const DRAWITEMSTRUCT *draw)
@@ -3035,6 +3148,7 @@ static BOOL viewer_initialize(const HWND hWnd)
 	}
 	viewer_create_settings(hWnd);
 	tileview_create(hInst, hWnd, ID_CLIPMASTER_TILES);
+	tileview_layout(GetDlgItem(hWnd, ID_CLIPMASTER_TILES), option.config_layout == 1);
 	tileview_create(hInst, hWnd, ID_CLIPMASTER_FAVORITES);
 	tileview_favorites(GetDlgItem(hWnd, ID_CLIPMASTER_FAVORITES), TRUE);
 	tileview_create(hInst, hWnd, ID_CLIPMASTER_SAMPLES);
@@ -3046,9 +3160,17 @@ static BOOL viewer_initialize(const HWND hWnd)
 	viewer_setting_control(hWnd, TEXT("EDIT"), TEXT(""), ES_AUTOHSCROLL | WS_TABSTOP,
 		ID_CLIPMASTER_SEARCH, 0, 0, 1, 1);
 	SendDlgItemMessage(hWnd, ID_CLIPMASTER_SEARCH, EM_SETLIMITTEXT, 255, 0);
+	SendDlgItemMessage(hWnd, ID_CLIPMASTER_SEARCH, EM_SETCUEBANNER, TRUE,
+		(LPARAM)TEXT("검색할 clip을 입력하고 enter를 누르세요. 검색된 clip은 색상이 변경됩니다."));
 	SetWindowSubclass(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH), viewer_search_proc, 1, 0);
 	viewer_setting_control(hWnd, TEXT("BUTTON"), TEXT("\x2192"), BS_PUSHBUTTON | WS_TABSTOP,
 		ID_CLIPMASTER_FIND, 0, 0, 1, 1);
+	viewer_setting_control(hWnd, TEXT("BUTTON"), TEXT("load clips from windows"), BS_PUSHBUTTON | WS_TABSTOP,
+		ID_CLIPMASTER_LOAD, 0, 0, 1, 1);
+	viewer_setting_control(hWnd, TEXT("EDIT"), TEXT(""), ES_NUMBER | ES_CENTER | ES_AUTOHSCROLL | WS_TABSTOP,
+		ID_CLIPMASTER_LOAD_COUNT, 0, 0, 1, 1);
+	SendDlgItemMessage(hWnd, ID_CLIPMASTER_LOAD_COUNT, EM_SETLIMITTEXT, 3, 0);
+	SetDlgItemInt(hWnd, ID_CLIPMASTER_LOAD_COUNT, option.config_load_clip_count, FALSE);
 	{
 		HWND tooltip = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
 			CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hWnd, NULL, hInst, NULL);
@@ -3059,6 +3181,9 @@ static BOOL viewer_initialize(const HWND hWnd)
 		tool.hwnd = hWnd;
 		tool.uId = (UINT_PTR)GetDlgItem(hWnd, ID_CLIPMASTER_FIND);
 		tool.lpszText = TEXT("Search");
+		SendMessage(tooltip, TTM_ADDTOOL, 0, (LPARAM)&tool);
+		tool.uId = (UINT_PTR)GetDlgItem(hWnd, ID_CLIPMASTER_LOAD);
+		tool.lpszText = TEXT("Load clips from the Windows clipboard history");
 		SendMessage(tooltip, TTM_ADDTOOL, 0, (LPARAM)&tool);
 	}
 
@@ -3192,10 +3317,19 @@ static void viewer_set_controls(const HWND hWnd)
 		window_rect.right, max(0, (int)(window_rect.bottom - statusbar_size - toolbar_size)), TRUE);
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH_LABEL), Scale(12), toolbar_size + Scale(8),
 		Scale(76), Scale(28), TRUE);
-	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH), Scale(96), toolbar_size + Scale(8),
-		max(1, window_rect.right - Scale(148)), Scale(28), TRUE);
-	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_FIND), max(0, window_rect.right - Scale(44)),
-		toolbar_size + Scale(8), Scale(32), Scale(28), TRUE);
+	{
+		int count_left = max(0, window_rect.right - Scale(68));
+		int load_left = max(0, count_left - Scale(184));
+		int find_left = max(0, load_left - Scale(44));
+		MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_LOAD_COUNT), count_left, toolbar_size + Scale(8),
+			Scale(56), Scale(28), TRUE);
+		MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_LOAD), load_left, toolbar_size + Scale(8),
+			Scale(176), Scale(28), TRUE);
+		MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_FIND), find_left, toolbar_size + Scale(8),
+			Scale(32), Scale(28), TRUE);
+		MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH), Scale(96), toolbar_size + Scale(8),
+			max(1, find_left - Scale(104)), Scale(28), TRUE);
+	}
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_TILES), 0, toolbar_size + Scale(44),
 		window_rect.right, max(0, (int)(window_rect.bottom - statusbar_size - toolbar_size - Scale(44))), TRUE);
 
@@ -3675,6 +3809,25 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 		}
 		break;
 
+	case WM_WINCLIP_LOADED:
+		{
+			WINCLIP_RESULT *loaded = (WINCLIP_RESULT *)lParam;
+			EnableWindow(GetDlgItem(hWnd, ID_CLIPMASTER_LOAD), TRUE);
+			if (loaded == NULL || *loaded->error) {
+				MessageBox(hWnd, loaded != NULL ? loaded->error : TEXT("Could not read the Windows clipboard history."),
+					WINDOW_TITLE, MB_OK | MB_ICONINFORMATION);
+			} else {
+				DATA_INFO *items = loaded->items;
+				loaded->items = NULL;
+				if (SendMessage(main_wnd, WM_HISTORY_IMPORT, 0, (LPARAM)items) == 0) {
+					MessageBox(hWnd, TEXT("No new clips were found in the Windows clipboard history."),
+						WINDOW_TITLE, MB_OK | MB_ICONINFORMATION);
+				}
+			}
+			winclip_result_free(loaded);
+		}
+		break;
+
 	case WM_VIEWER_SHOW_FAVORITES:
 		viewer_select_tab(hWnd, 1);
 		break;
@@ -3707,6 +3860,19 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			break;
 		case ID_CLIPMASTER_FIND:
 			SendMessage(hWnd, WM_TILE_SEARCH, 0, 0);
+			break;
+		case ID_CLIPMASTER_LOAD:
+			if (winclip_history_start(hWnd, viewer_load_clip_count(hWnd))) {
+				EnableWindow(GetDlgItem(hWnd, ID_CLIPMASTER_LOAD), FALSE);
+			} else {
+				MessageBox(hWnd, TEXT("Could not start reading the Windows clipboard history."),
+					WINDOW_TITLE, MB_OK | MB_ICONERROR);
+			}
+			break;
+		case ID_CLIPMASTER_LOAD_COUNT:
+			if (HIWORD(wParam) == EN_KILLFOCUS) {
+				viewer_load_clip_count(hWnd);
+			}
 			break;
 		case ID_CLIPMASTER_SEARCH:
 			if (HIWORD(wParam) == EN_CHANGE && GetWindowTextLength(GetDlgItem(hWnd, ID_CLIPMASTER_SEARCH)) == 0)

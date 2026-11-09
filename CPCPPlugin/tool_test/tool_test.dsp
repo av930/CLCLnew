@@ -102,7 +102,7 @@ SOURCE=.\tool_test.def
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
-SOURCE=..\CLCLPlugin.h
+SOURCE=..\CPCPPlugin.h
 # End Source File
 # End Group
 # Begin Group "Resource Files"

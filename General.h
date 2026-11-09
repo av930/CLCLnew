@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * General.h
  *
@@ -8,8 +8,8 @@
  *		nakka@nakka.com
  */
 
-#ifndef _INC_CLCL_GENERAL_H
-#define _INC_CLCL_GENERAL_H
+#ifndef _INC_CPCP_GENERAL_H
+#define _INC_CPCP_GENERAL_H
 
 /* Include Files */
 #ifdef OP_XP_STYLE
@@ -20,22 +20,22 @@
 /* Define */
 #define BUF_SIZE						256
 
-#define APP_NAME						TEXT("CLCL_new")
+#define APP_NAME						TEXT("CPCP_new")
 #define APP_VAR							221
 
-#define MAIN_WND_CLASS					TEXT("CLCLNewMain")
+#define MAIN_WND_CLASS					TEXT("CPCPNewMain")
 #define MAIN_WINDOW_TITLE				APP_NAME
 
 #define DEFAULT_USER					TEXT("DEFAULT")
 #define GENERAL_INI						TEXT("general.ini")
-#define APP_INI							TEXT("clcl_app.ini")
-#define USER_INI						TEXT("clcl.ini")
+#define APP_INI							TEXT("cpcp_app.ini")
+#define USER_INI						TEXT("cpcp.ini")
 #define HISTORY_FILENAME				TEXT("history.dat")
 #define REGIST_FILENAME					TEXT("regist.dat")
 
-#define MAIN_EXE						TEXT("CLCL.exe")
-#define OPTION_EXE						TEXT("CLCLSet.exe")
-#define HOOK_LIB						TEXT("CLCLHook.dll")
+#define MAIN_EXE						TEXT("CPCP.exe")
+#define OPTION_EXE						TEXT("CPCPSet.exe")
+#define HOOK_LIB						TEXT("CPCPHook.dll")
 
 #define HKEY_ID							0x0300			// ホットキーID
 
@@ -62,6 +62,7 @@
 #define WM_HISTORY_LOAD					(WM_APP + 302)
 #define WM_HISTORY_SAVE					(WM_APP + 303)
 #define WM_HISTORY_CLEAR				(WM_APP + 304)
+#define WM_HISTORY_IMPORT				(WM_APP + 305)
 #define WM_REGIST_CHANGED				(WM_APP + 350)
 #define WM_REGIST_GET_ROOT				(WM_APP + 351)
 #define WM_REGIST_LOAD					(WM_APP + 352)

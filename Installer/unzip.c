@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL Installer
+ * CPCP Installer
  *
  * unzip.c
  *

@@ -1,12 +1,12 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-	CLCL のインストーラを作成します。
+	CPCP のインストーラを作成します。
 
 .DESCRIPTION
-	CLCL 本体のビルド、インストールするファイルの収集、ZIP の作成、
+	CPCP 本体のビルド、インストールするファイルの収集、ZIP の作成、
 	インストーラのビルドまでを一括で行います。
-	出力するファイル名は clcl<バージョン>.exe になります。(Ver 2.2.0 なら clcl220.exe)
+	出力するファイル名は cpcp<バージョン>.exe になります。(Ver 2.2.0 なら cpcp220.exe)
 
 	インストールするファイルの収集と ZIP の作成は、Installer.vcxproj の
 	ビルド前のイベントから prepare.ps1 が行います。Visual Studio で
@@ -14,7 +14,7 @@
 
 .EXAMPLE
 	PS> .\build.ps1
-	CLCL 本体をビルドしてからインストーラを作成します。
+	CPCP 本体をビルドしてからインストーラを作成します。
 
 .EXAMPLE
 	PS> .\build.ps1 -SkipBuild
@@ -29,13 +29,13 @@ param(
 	[string]$Configuration = "Release",
 	# ビルドするプラットフォーム
 	[string]$Platform = "x86",
-	# バージョン (省略時は CLCL.rc の FILEVERSION を使用)
+	# バージョン (省略時は CPCP.rc の FILEVERSION を使用)
 	[string]$Version = "",
 	# インストールするファイルの収集元 (省略時は <リポジトリ>\<ビルド構成>)
 	[string]$SourceDir = "",
 	# インストーラの出力先 (省略時は Installer\out)
 	[string]$OutDir = "",
-	# CLCL 本体のビルドを行わない (インストーラのみビルドする)
+	# CPCP 本体のビルドを行わない (インストーラのみビルドする)
 	[switch]$SkipBuild
 )
 
@@ -69,13 +69,13 @@ if ([string]::IsNullOrEmpty($msBuild)) {
 # ------------------------------------------------------------------
 $props = @()
 if (-not [string]::IsNullOrEmpty($Version)) {
-	$props += "/p:ClclVersion=$Version"
+	$props += "/p:CpcpVersion=$Version"
 }
 if (-not [string]::IsNullOrEmpty($SourceDir)) {
-	$props += "/p:ClclSourceDir=$($SourceDir.TrimEnd('\'))"
+	$props += "/p:CpcpSourceDir=$($SourceDir.TrimEnd('\'))"
 }
 if (-not [string]::IsNullOrEmpty($OutDir)) {
-	$props += "/p:ClclOutDir=$($OutDir.TrimEnd('\'))"
+	$props += "/p:CpcpOutDir=$($OutDir.TrimEnd('\'))"
 }
 
 # ------------------------------------------------------------------
@@ -86,15 +86,15 @@ if ($SkipBuild) {
 	& $msBuild (Join-Path $InstallerDir "Installer.vcxproj") /nologo /v:minimal `
 		"/p:Configuration=$Configuration" "/p:Platform=Win32" @props
 } else {
-	Write-Step "CLCL 本体とインストーラをビルドします ($Configuration|$Platform)"
-	& $msBuild (Join-Path $RootDir "CLCL.sln") /nologo /v:minimal /m `
+	Write-Step "CPCP 本体とインストーラをビルドします ($Configuration|$Platform)"
+	& $msBuild (Join-Path $RootDir "CPCP.sln") /nologo /v:minimal /m `
 		"/p:Configuration=$Configuration" "/p:Platform=$Platform" @props
 }
 if ($LASTEXITCODE -ne 0) {
 	throw "ビルドに失敗しました。"
 }
 
-$targetPath = Join-Path $InstallerDir (Join-Path $Configuration "CLCLInst.exe")
+$targetPath = Join-Path $InstallerDir (Join-Path $Configuration "CPCPInst.exe")
 if (-not (Test-Path $targetPath)) {
 	throw "インストーラがビルドされていません: $targetPath"
 }
@@ -117,7 +117,7 @@ if (-not [string]::IsNullOrEmpty($Version)) {
 & (Join-Path $InstallerDir "prepare.ps1") @publishArgs
 
 $outRoot = if ([string]::IsNullOrEmpty($OutDir)) { Join-Path $InstallerDir "out" } else { $OutDir }
-$exe = Get-ChildItem -Path (Join-Path $outRoot "clcl*.exe") -ErrorAction SilentlyContinue |
+$exe = Get-ChildItem -Path (Join-Path $outRoot "cpcp*.exe") -ErrorAction SilentlyContinue |
 	Where-Object { $_.LastWriteTimeUtc -ge (Get-Item $targetPath).LastWriteTimeUtc } |
 	Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($null -eq $exe) {

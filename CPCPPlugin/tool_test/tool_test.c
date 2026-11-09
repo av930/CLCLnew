@@ -13,7 +13,7 @@
 #include <windows.h>
 #undef  _INC_OLE
 
-#include "..\CLCLPlugin.h"
+#include "..\CPCPPlugin.h"
 
 /* Define */
 

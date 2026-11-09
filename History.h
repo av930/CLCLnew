@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * History.h
  *
@@ -19,6 +19,7 @@
 
 /* Function Prototypes */
 BOOL history_add(DATA_INFO **root, DATA_INFO *new_item, const BOOL overlap_check);
+BOOL history_import(DATA_INFO **root, DATA_INFO *new_item);
 void history_trim(DATA_INFO **root);
 
 #endif

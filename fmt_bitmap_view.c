@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * fmt_bitmap_view.c
  *
@@ -30,7 +30,7 @@
 #include "resource.h"
 
 /* Define */
-#define WINDOW_CLASS					TEXT("CLCLBitmapView")
+#define WINDOW_CLASS					TEXT("CPCPBitmapView")
 
 #define WM_SET_STRETCH_BITMAP			(WM_APP + 100)
 #define WM_SET_SCROLLBAR				(WM_APP + 101)

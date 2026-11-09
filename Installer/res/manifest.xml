@@ -3,10 +3,10 @@
 	<assemblyIdentity
 		version="1.0.0.0"
 		processorArchitecture="*"
-		name="CLCL.Installer"
+		name="CPCP.Installer"
 		type="win32"
 	/>
-	<description>CLCL Installer</description>
+	<description>CPCP Installer</description>
 	<trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
 		<security>
 			<requestedPrivileges>

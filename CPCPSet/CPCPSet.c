@@ -1,7 +1,7 @@
 /*
- * CLCLSet
+ * CPCPSet
  *
- * CLCLSet.c
+ * CPCPSet.c
  *
  * Copyright (C) 1996-2019 by Ohno Tomoaki. All rights reserved.
  *		https://www.nakka.com/

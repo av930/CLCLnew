@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * ViewerDnD.c
  *
@@ -25,7 +25,7 @@
 #include "resource.h"
 
 /* Define */
-#define ERROR_TITLE						TEXT("CLCL - Error")
+#define ERROR_TITLE						TEXT("CPCP - Error")
 
 #define POPUPMENU_DRAGDROP				5
 

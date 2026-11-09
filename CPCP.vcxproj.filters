@@ -161,7 +161,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="CLCL.rc">
+    <ResourceCompile Include="CPCP.rc">
       <Filter>Source Files</Filter>
     </ResourceCompile>
   </ItemGroup>
@@ -361,7 +361,7 @@
     </Xml>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="clcl.def">
+    <CustomBuild Include="cpcp.def">
       <Filter>Source Files</Filter>
     </CustomBuild>
     <CustomBuild Include="res\cursor.cur">
@@ -380,10 +380,12 @@
   <ItemGroup>
     <ClCompile Include="ClipEdit.c"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="PastePlus.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="WinClipHistory.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="Hotkey.c"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="Config.c"><Filter>Source Files</Filter></ClCompile>
     <ClInclude Include="ClipEdit.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="PastePlus.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="WinClipHistory.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="Hotkey.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="Config.h"><Filter>Header Files</Filter></ClInclude>
   </ItemGroup>

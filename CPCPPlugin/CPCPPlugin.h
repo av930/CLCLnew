@@ -1,15 +1,15 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
- * CLCLPlugin.h Ver 0.0.1
+ * CPCPPlugin.h Ver 0.0.1
  *
  * Copyright (C) 1996-2003 by Nakashima Tomoaki. All rights reserved.
  *		http://www.nakka.com/
  *		nakka@nakka.com
  */
 
-#ifndef _INC_CLCLPLUGIN_H
-#define _INC_CLCLPLUGIN_H
+#ifndef _INC_CPCPPLUGIN_H
+#define _INC_CPCPPLUGIN_H
 
 /* Include Files */
 #define _INC_OLE

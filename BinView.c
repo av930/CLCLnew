@@ -1,5 +1,5 @@
 ﻿/*
- * CLCL
+ * CPCP
  *
  * BinView.c
  *
@@ -33,7 +33,7 @@
 #include "resource.h"
 
 /* Define */
-#define WINDOW_CLASS					TEXT("CLCLBinView")
+#define WINDOW_CLASS					TEXT("CPCPBinView")
 
 #define WM_SET_SCROLLBAR				(WM_APP + 101)
 #define WM_SHOW_MENU					(WM_APP + 102)
