@@ -9,6 +9,7 @@
 #include "String.h"
 #include "Data.h"
 #include "ClipSample.h"
+#include "TileView.h"
 
 typedef struct {
     DWORD files;
@@ -187,6 +188,9 @@ DATA_INFO *clipsample_create(void)
     };
     static const char rtf[] = "{\\rtf1\\ansi{\\colortbl;\\red214\\green69\\blue65;\\red52\\green120\\blue205;}\\cf1\\b Lorem \\cf2\\i Ipsum}";
     static const int sizes[5][2] = { { 192, 48 }, { 192, 96 }, { 384, 96 }, { 192, 192 }, { 96, 192 } };
+    static const int image_kinds[5] = { CLIP_PANEL_TYPE2_W200_H48, CLIP_PANEL_TYPE3_W200_H96, CLIP_PANEL_TYPE4_W408_H96,
+        CLIP_PANEL_TYPE6_W200_H200, CLIP_PANEL_TYPE5_W96_H200 };
+    static const int text_kinds[3] = { CLIP_PANEL_TYPE2_W200_H48, CLIP_PANEL_TYPE3_W200_H96, CLIP_PANEL_TYPE4_W408_H96 };
     static const COLORREF colors[5] = { RGB(214, 69, 65), RGB(236, 150, 34), RGB(46, 160, 90), RGB(52, 120, 205), RGB(130, 80, 190) };
     DATA_INFO *head = NULL, **tail = &head, *item;
     SYSTEMTIME now;
@@ -195,20 +199,20 @@ DATA_INFO *clipsample_create(void)
     GetLocalTime(&now);
     SystemTimeToFileTime(&now, &stamp);
     for (index = 0; index < 3; index++) {
-        item = sample_item(NULL, index + 1, &stamp);
+        item = sample_item(NULL, text_kinds[index], &stamp);
         sample_push(&tail, item, item && sample_text(item, texts[index]));
     }
-    item = sample_item(NULL, 1, &stamp);
+    item = sample_item(NULL, CLIP_PANEL_TYPE2_W200_H48, &stamp);
     sample_push(&tail, item, item && sample_text(item, TEXT("Lorem Ipsum")) &&
         sample_add(item, RegisterClipboardFormat(TEXT("Rich Text Format")), TEXT("Rich Text Format"), rtf, sizeof(rtf)));
-    item = sample_item(TEXT("Lorem Ipsum.txt"), 1, &stamp);
+    item = sample_item(TEXT("Lorem Ipsum.txt"), CLIP_PANEL_TYPE2_W200_H48, &stamp);
     sample_push(&tail, item, item && sample_file(item));
-    item = sample_item(TEXT("Lorem Ipsum (audio)"), 1, &stamp);
+    item = sample_item(TEXT("Lorem Ipsum (audio)"), CLIP_PANEL_TYPE2_W200_H48, &stamp);
     sample_push(&tail, item, item && sample_audio(item));
-    item = sample_item(TEXT("Lorem Ipsum (device)"), 1, &stamp);
+    item = sample_item(TEXT("Lorem Ipsum (device)"), CLIP_PANEL_TYPE2_W200_H48, &stamp);
     sample_push(&tail, item, item && sample_add(item, CF_DSPTEXT, TEXT("PRIVATE TEXT"), "Lorem Ipsum", 12));
     for (index = 0; index < 5; index++) {
-        item = sample_item(NULL, index + 1, &stamp);
+        item = sample_item(NULL, image_kinds[index], &stamp);
         sample_push(&tail, item, item && sample_image(item, sizes[index][0], sizes[index][1], colors[index]));
     }
     return head;

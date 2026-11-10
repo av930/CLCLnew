@@ -43,9 +43,9 @@ static void editor_preview(HWND window, CLIP_EDITOR *editor)
 {
     TCHAR metadata[32];
     int selected = (int)SendDlgItemMessage(window, 303, CB_GETCURSEL, 0, 0);
-    int kind = selected >= 0 && selected < 6 ? selected + 1 : 0;
-    EnableWindow(GetDlgItem(window, 301), kind != 4 && kind != 5);
-    EnableWindow(GetDlgItem(window, 308), kind != 4 && kind != 5);
+    int kind = selected >= 0 && selected < CLIP_PANEL_TYPE_COUNT ? selected + 1 : 0;
+    EnableWindow(GetDlgItem(window, 301), !CLIP_PANEL_IMAGE_ONLY(kind));
+    EnableWindow(GetDlgItem(window, 308), !CLIP_PANEL_IMAGE_ONLY(kind));
     if (editor->working->plugin_string == NULL ||
         _tcsncmp(editor->working->plugin_string, TEXT("ClipMaster:tile:"), 16) == 0) {
         wsprintf(metadata, TEXT("ClipMaster:tile:%d"), kind);
@@ -119,7 +119,7 @@ static LRESULT CALLBACK editor_proc(HWND window, UINT message, WPARAM parameter,
         }
         if (LOWORD(parameter) == 308) {
             int kind = (int)SendDlgItemMessage(window, 303, CB_GETCURSEL, 0, 0) + 1;
-            if (kind == 4 || kind == 5) {
+            if (CLIP_PANEL_IMAGE_ONLY(kind)) {
                 SetDlgItemText(window, 304, TEXT("This panel accepts images only."));
                 return 0;
             }
@@ -131,12 +131,12 @@ static LRESULT CALLBACK editor_proc(HWND window, UINT message, WPARAM parameter,
         }
         if (LOWORD(parameter) == IDOK) {
             int selected_kind = (int)SendDlgItemMessage(window, 303, CB_GETCURSEL, 0, 0) + 1;
-            if (selected_kind == 7) selected_kind = 0;
-            if (selected_kind == 4 && (!editor->image || !tileview_has_image(window, editor->working))) {
+            if (selected_kind == CLIP_PANEL_TYPE_COUNT + 1) selected_kind = 0;
+            if (selected_kind == CLIP_PANEL_TYPE6_W200_H200 && (!editor->image || !tileview_has_image(window, editor->working))) {
                 SetDlgItemText(window, 304, TEXT("The large panel accepts images only."));
                 return 0;
             }
-            if (selected_kind == 5 && (!editor->image || !tileview_portrait_image(window, editor->working))) {
+            if (selected_kind == CLIP_PANEL_TYPE5_W96_H200 && (!editor->image || !tileview_portrait_image(window, editor->working))) {
                 SetDlgItemText(window, 304, TEXT("The portrait panel requires an image taller than it is wide."));
                 return 0;
             }
@@ -195,7 +195,7 @@ DATA_INFO *clipedit_show(HINSTANCE instance, HWND owner, DATA_INFO *original, in
     HWND window, text;
     DATA_INFO *format;
     MSG message;
-    const TCHAR *sizes[] = { TEXT("200 x 48"), TEXT("200 x 96"), TEXT("408 x 96"), TEXT("200 x 200"), TEXT("96 x 200"), TEXT("408 x 24"), TEXT("Automatic") };
+    const TCHAR *sizes[] = { TEXT("408 x 24"), TEXT("200 x 48"), TEXT("200 x 96"), TEXT("408 x 96"), TEXT("96 x 200"), TEXT("200 x 200"), TEXT("Automatic") };
     int index;
     ZeroMemory(&editor, sizeof(editor));
     editor.working = original ? data_item_copy(original, FALSE, FALSE, NULL) : data_create_item(NULL, TRUE, NULL);

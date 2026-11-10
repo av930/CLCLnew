@@ -137,7 +137,7 @@ function Get-CpcpTiles([int]$Identifier = 125, [switch]$NoRefresh) {
     $main = [CpcpSmokeNative]::FindWindow('CPCPNewMain', 'CPCP_new')
     if (-not $NoRefresh) { [void](Send-Cpcp $main 786 ([IntPtr]0x7F01)) }
     $viewer = [CpcpSmokeNative]::FindWindow('CPCPViewer', 'ClipMaster')
-    if (-not $NoRefresh) { [void](Send-Cpcp $viewer 33890 ([IntPtr][int]$(switch ($Identifier) { 128 { 1 } 131 { 3 } default { 0 } }))) }
+    if (-not $NoRefresh) { [void](Send-Cpcp $viewer 33890 ([IntPtr][int]$(switch ($Identifier) { 128 { 1 } 131 { 4 } default { 0 } }))) }
     $tiles = [CpcpSmokeNative]::GetDlgItem($viewer, $Identifier)
     [uint32]$processId = 0
     [void][CpcpSmokeNative]::GetWindowThreadProcessId($tiles, [ref]$processId)
@@ -338,24 +338,25 @@ try {
         Assert-Cpcp ((Send-Cpcp $tabs 4868).ToInt32() -eq 6) 'Viewer has six tabs'
         $symbols = [CpcpSmokeNative]::GetDlgItem($text.Viewer, 132)
         Assert-Cpcp ($symbols -ne [IntPtr]::Zero) 'Symbols has an independent pane'
-        Assert-Cpcp ([CpcpSmokeNative]::GetDlgItem([CpcpSmokeNative]::GetDlgItem($text.Viewer, 129), 102) -eq [IntPtr]::Zero) 'PastePlus has no symbol category selector'
+        Assert-Cpcp ([CpcpSmokeNative]::GetDlgItem($symbols, 4000) -ne [IntPtr]::Zero) 'Symbols has the Character Map button'
         $symbolCount = 0
         for ($identifier = 2000; $identifier -lt 2124; $identifier++) {
             if ([CpcpSmokeNative]::GetDlgItem($symbols, $identifier) -ne [IntPtr]::Zero) { $symbolCount++ }
         }
         Assert-Cpcp ($symbolCount -eq 124) 'All 124 symbols are expanded in the Symbols tab'
         $historyBefore = Get-CpcpTiles
+        [void](Send-Cpcp $text.Viewer 33890 ([IntPtr]4))
         $samples = Get-CpcpTiles 131
-        Assert-Cpcp ([CpcpSmokeNative]::IsWindowVisible($samples.Window)) 'ClipSample tab is shown before Setting'
-        Assert-Cpcp ((Send-Cpcp $tabs 4875).ToInt32() -eq 4) 'ClipSample is tab index 4'
-        Assert-Cpcp ($samples.Count -eq 12) "ClipSample creates 12 sample panels (actual: $($samples.Count))"
+        Assert-Cpcp ([CpcpSmokeNative]::IsWindowVisible($samples.Window)) 'Debug tab is shown before Setting'
+        Assert-Cpcp ((Send-Cpcp $tabs 4875).ToInt32() -eq 4) 'Debug is tab index 4'
+        Assert-Cpcp ($samples.Count -eq 18) "Debug creates 6 plus panels and 12 sample panels (actual: $($samples.Count))"
         $samplePath = Join-Path $temporary 'samples\Lorem Ipsum.txt'
         Assert-Cpcp ((Test-Path -LiteralPath $samplePath) -and ([IO.File]::ReadAllText($samplePath) -eq 'Lorem Ipsum')) 'Lorem Ipsum sample file is created'
         $dpi = [CpcpSmokeNative]::GetDpiForWindow($samples.Window)
         $cell = [int][Math]::Floor($dpi + 0.5)
         $gap = [int][Math]::Floor(8 * $dpi / 96.0 + 0.5)
         $small = [int][Math]::Floor(48 * $dpi / 96.0 + 0.5)
-        $expectedKinds = 1, 2, 3, 1, 1, 1, 1, 1, 2, 3, 4, 5
+        $expectedKinds = 2, 3, 4, 2, 2, 2, 2, 2, 3, 4, 6, 5
         $expectedCategories = 'T', 'T', 'T', 'R', 'F', 'A', 'D', 'I', 'I', 'I', 'I', 'I'
         $colors = @(@(214, 69, 65), @(236, 150, 34), @(46, 160, 90), @(52, 120, 205), @(130, 80, 190))
         [void](Send-Cpcp $samples.Window 277 ([IntPtr]6))
@@ -371,23 +372,24 @@ try {
         } finally { $graphics.Dispose() }
         try {
             for ($index = 0; $index -lt 12; $index++) {
+                $entry = $index
                 $kind = $expectedKinds[$index]
-                $left = [BitConverter]::ToInt32($samples.Entries, $index * 72 + 36)
-                $top = [BitConverter]::ToInt32($samples.Entries, $index * 72 + 40)
-                $right = [BitConverter]::ToInt32($samples.Entries, $index * 72 + 44)
-                $bottom = [BitConverter]::ToInt32($samples.Entries, $index * 72 + 48)
-                $columns = switch ($kind) { 3 { 4 } 5 { 1 } default { 2 } }
-                $height = switch ($kind) { 1 { $small } 2 { $cell } 3 { $cell } default { 2 * $cell + $gap } }
-                Assert-Cpcp ([BitConverter]::ToInt32($samples.Entries, $index * 72 + 52) -eq $kind -and ($right - $left) -eq $columns * ($cell + $gap) - $gap -and ($bottom - $top) -eq $height) "Sample $index ($($expectedCategories[$index])) uses panel kind $kind"
+                $left = [BitConverter]::ToInt32($samples.Entries, $entry * 72 + 36)
+                $top = [BitConverter]::ToInt32($samples.Entries, $entry * 72 + 40)
+                $right = [BitConverter]::ToInt32($samples.Entries, $entry * 72 + 44)
+                $bottom = [BitConverter]::ToInt32($samples.Entries, $entry * 72 + 48)
+                $columns = switch ($kind) { 1 { 4 } 4 { 4 } 5 { 1 } default { 2 } }
+                $height = switch ($kind) { 2 { $small } 3 { $cell } 4 { $cell } default { 2 * $cell + $gap } }
+                Assert-Cpcp ([BitConverter]::ToInt32($samples.Entries, $entry * 72 + 52) -eq $kind -and ($right - $left) -eq $columns * ($cell + $gap) - $gap -and ($bottom - $top) -eq $height) "Sample $index ($($expectedCategories[$index])) uses panel kind $kind"
                 $level = if ($expectedCategories[$index] -in 'F', 'A', 'D') { 88 } else { 160 }
                 $badge = $bitmap.GetPixel($right - [int](13 * $dpi / 96) , $bottom - [int](21 * $dpi / 96))
                 Assert-Cpcp ($badge.R -eq $level -and $badge.G -eq $level -and $badge.B -eq $level) "Sample $index shows the $($expectedCategories[$index]) category badge color"
                 if ($index -ge 7) {
-                    $color = $bitmap.GetPixel([int](($left + $right) / 2), [int](($top + $bottom) / 2) - [int](12 * $dpi / 96))
+                    $color = $bitmap.GetPixel([int](($left + $right) / 2), [int](($top + $bottom) / 2) + [int](8 * $dpi / 96))
                     $expected = $colors[$index - 7]
                     Assert-Cpcp ($color.R -eq $expected[0] -and $color.G -eq $expected[1] -and $color.B -eq $expected[2]) "Image sample $($index - 6) uses a unique solid color"
                 }
-                for ($other = 0; $other -lt $index; $other++) {
+                for ($other = 0; $other -lt $entry; $other++) {
                     $otherLeft = [BitConverter]::ToInt32($samples.Entries, $other * 72 + 36)
                     $otherTop = [BitConverter]::ToInt32($samples.Entries, $other * 72 + 40)
                     $otherRight = [BitConverter]::ToInt32($samples.Entries, $other * 72 + 44)
@@ -535,7 +537,7 @@ try {
     foreach ($kind in 1..6 + @(0)) {
         $before = Get-CpcpTiles 128
         $editor = @(Open-CpcpEditor $before.Viewer $kind)[-1]
-        if ($kind -eq 4 -or $kind -eq 5) {
+        if ($kind -eq 5 -or $kind -eq 6) {
             $textControl = [CpcpSmokeNative]::GetDlgItem($editor, 301)
             Assert-Cpcp (([CpcpSmokeNative]::GetWindowLong($textControl, -16) -band 0x08000000) -ne 0) "Image-only panel $kind disables text input"
             Assert-Cpcp (([CpcpSmokeNative]::GetWindowLong([CpcpSmokeNative]::GetDlgItem($editor, 308), -16) -band 0x08000000) -ne 0) "Image-only panel $kind disables text mode"
@@ -543,7 +545,7 @@ try {
             [void](Send-Cpcp $editor 273 ([IntPtr]1))
             Assert-Cpcp ([CpcpSmokeNative]::FindWindow('ClipMasterEditor', 'Favorite Clip') -eq $editor) "Image-only panel $kind rejects text on save"
         }
-        if (($kind -le 3 -and $kind -gt 0) -or $kind -eq 6) {
+        if ($kind -ge 1 -and $kind -le 4) {
             [void](Send-Cpcp ([CpcpSmokeNative]::GetDlgItem($editor, 301)) 258 ([IntPtr](65 + $kind)))
         } else {
             $bitmap = if ($kind -eq 5) { New-Object System.Drawing.Bitmap 80, 240 } else { New-Object System.Drawing.Bitmap 400, 80 }
@@ -553,7 +555,7 @@ try {
                 Set-CpcpImage $bitmap
             } finally { $bitmap.Dispose() }
             Paste-CpcpEditorImage $editor $(if ($kind -eq 5) { 80 } else { 400 }) $(if ($kind -eq 5) { 240 } else { 80 })
-            if ($kind -eq 4 -or $kind -eq 5) {
+            if ($kind -eq 5 -or $kind -eq 6) {
                 [void](Send-Cpcp $editor 273 ([IntPtr]308))
                 Assert-Cpcp ([CpcpSmokeNative]::IsWindowVisible([CpcpSmokeNative]::GetDlgItem($editor, 307))) "Image-only panel $kind cannot switch its image to text"
             }
@@ -566,8 +568,8 @@ try {
         $dpi = [CpcpSmokeNative]::GetDpiForWindow($favorite.Window)
         $cell = [int][Math]::Floor($dpi + 0.5)
         $gap = [int][Math]::Floor(8 * $dpi / 96.0 + 0.5)
-        $columns = if ($kind -eq 5) { 1 } elseif ($kind -eq 3 -or $kind -eq 6 -or $kind -eq 0) { 4 } else { 2 }
-        $height = if ($kind -eq 1) { [int][Math]::Floor(48 * $dpi / 96.0 + 0.5) } elseif ($kind -eq 6) { [int][Math]::Floor(24 * $dpi / 96.0 + 0.5) } elseif ($kind -eq 4 -or $kind -eq 5) { 2 * $cell + $gap } else { $cell }
+        $columns = if ($kind -eq 5) { 1 } elseif ($kind -eq 1 -or $kind -eq 4 -or $kind -eq 0) { 4 } else { 2 }
+        $height = if ($kind -eq 1) { [int][Math]::Floor(24 * $dpi / 96.0 + 0.5) } elseif ($kind -eq 2) { [int][Math]::Floor(48 * $dpi / 96.0 + 0.5) } elseif ($kind -eq 5 -or $kind -eq 6) { 2 * $cell + $gap } else { $cell }
         Assert-Cpcp (([BitConverter]::ToInt32($favorite.Entries, 44) - [BitConverter]::ToInt32($favorite.Entries, 36)) -eq $columns * ($cell + $gap) - $gap -and
             ([BitConverter]::ToInt32($favorite.Entries, 48) - [BitConverter]::ToInt32($favorite.Entries, 40)) -eq $height) "Favorite panel kind $kind displays at the correct size"
     }
@@ -586,7 +588,7 @@ try {
     finally { $graphics.ReleaseHdc($context); $graphics.Dispose() }
     try {
         $crop = [Drawing.Rectangle]::Empty
-        foreach ($index in ($favoritesSaved.Count - 3)..($favoritesSaved.Count - 2)) {
+        foreach ($index in ($favoritesSaved.Count - 2)..($favoritesSaved.Count - 1)) {
             $rectangle = [Drawing.Rectangle]::FromLTRB([BitConverter]::ToInt32($favoritesSaved.Entries, $index * 72 + 36),
                 [BitConverter]::ToInt32($favoritesSaved.Entries, $index * 72 + 40),
                 [BitConverter]::ToInt32($favoritesSaved.Entries, $index * 72 + 44),
@@ -713,7 +715,7 @@ try {
         foreach ($control in 100, 101) {
             Assert-Cpcp (([CpcpSmokeNative]::GetWindowLong([CpcpSmokeNative]::GetDlgItem($image.Viewer, $control), -16) -band 0x10000000) -eq 0) "Legacy control $control stays hidden on tab $tab"
         }
-        $visibleControl = @(125, 128, 129, 131, 122)[$tab]
+        $visibleControl = @(125, 128, 129, 132, 131)[$tab]
         Assert-Cpcp ([CpcpSmokeNative]::IsWindowVisible([CpcpSmokeNative]::GetDlgItem($image.Viewer, $visibleControl))) "Tab $tab content is visible"
     }
     $spaceAvailable = [CpcpSmokeNative]::RegisterHotKey([IntPtr]::Zero, 301, 1, 32)

@@ -254,6 +254,12 @@ static TCHAR *tile_text(DATA_INFO *item)
     return alloc_copy(data_get_title(item));
 }
 
+/* Names of the clip panel types without the CLIP_PANEL_ prefix, shown on the "+" panels (index = kind - 1). */
+static const TCHAR *const clip_panel_names[CLIP_PANEL_TYPE_COUNT] = {
+    TEXT("TYPE1_W408_H24"), TEXT("TYPE2_W200_H48"), TEXT("TYPE3_W200_H96"),
+    TEXT("TYPE4_W408_H96"), TEXT("TYPE5_W96_H200"), TEXT("TYPE6_W200_H200")
+};
+
 static void tile_clear(TILE_VIEW *view)
 {
     int index;
@@ -305,21 +311,32 @@ static void tile_size(HWND window, HDC context, TILE_ENTRY *entry, int max_width
         else columns *= 2;
         width = columns * (cell + gap) - gap;
     }
-    if (entry->kind >= 1 && entry->kind <= 4) {
-        columns = entry->kind == 3 ? 4 : 2;
-        rows = entry->kind == 4 ? 2 : 1;
-        width = columns * (cell + gap) - gap;
-        height = entry->kind == 1 ? tile_scale(window, 48) : rows * (cell + gap) - gap;
-    }
-    if (entry->kind == 6) {
+    switch (entry->kind) {
+    case CLIP_PANEL_TYPE1_W408_H24:
         columns = 4;
         width = columns * (cell + gap) - gap;
         height = tile_scale(window, 24);
-    }
-    if (entry->kind == 5 && (portrait || entry->item == NULL)) {
-        columns = 1;
-        width = cell;
-        height = block;
+        break;
+    case CLIP_PANEL_TYPE2_W200_H48:
+        columns = 2;
+        width = columns * (cell + gap) - gap;
+        height = tile_scale(window, 48);
+        break;
+    case CLIP_PANEL_TYPE3_W200_H96:
+    case CLIP_PANEL_TYPE4_W408_H96:
+    case CLIP_PANEL_TYPE6_W200_H200:
+        columns = entry->kind == CLIP_PANEL_TYPE4_W408_H96 ? 4 : 2;
+        rows = entry->kind == CLIP_PANEL_TYPE6_W200_H200 ? 2 : 1;
+        width = columns * (cell + gap) - gap;
+        height = rows * (cell + gap) - gap;
+        break;
+    case CLIP_PANEL_TYPE5_W96_H200:
+        if (portrait || entry->item == NULL) {
+            columns = 1;
+            width = cell;
+            height = block;
+        }
+        break;
     }
     *out_width = min(width, max(1, max_width));
     *out_height = height;
@@ -768,9 +785,10 @@ void tileview_refresh(HWND window, DATA_INFO *items)
             count++;
         }
     }
-    count += view->favorites ? 6 : 0;
+    count += view->favorites ? CLIP_PANEL_TYPE_COUNT : 0;
     view->entries = count ? mem_calloc(sizeof(TILE_ENTRY) * count) : NULL;
     if (view->entries != NULL) {
+        /* (the "+" panels follow the clips) */
         for (item = items; item != NULL; item = item->next) {
             if (item->type != TYPE_ITEM) {
                 continue;
@@ -790,7 +808,7 @@ void tileview_refresh(HWND window, DATA_INFO *items)
             view->count++;
         }
         if (view->favorites) {
-            for (count = 1; count <= 6; count++) {
+            for (count = CLIP_PANEL_TYPE1_W408_H24; count <= CLIP_PANEL_TYPE6_W200_H200; count++) {
                 view->entries[view->count].kind = count;
                 view->entries[view->count++].text = alloc_copy(TEXT("+"));
             }
@@ -817,7 +835,10 @@ void tileview_favorites(HWND window, BOOL enabled)
 void tileview_samples(HWND window, BOOL enabled)
 {
     TILE_VIEW *view = (TILE_VIEW *)GetWindowLongPtr(window, GWLP_USERDATA);
-    if (view != NULL) view->samples = enabled;
+    if (view != NULL) {
+        view->samples = enabled;
+        view->favorites = enabled;      /* same left-to-right flow with "+" panels as the favorites */
+    }
 }
 
 void tileview_layout(HWND window, BOOL vertical)
@@ -886,8 +907,8 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
     HDC context = CreateCompatibleDC(target);
     HDC source = NULL;
     HBITMAP buffer, old_bitmap;
-    HFONT old_font, category_font, large = NULL, label_font = NULL;
-    HBRUSH surface, search_surface, category_surfaces[2];
+    HFONT old_font, category_font, large = NULL, label_font = NULL, name_font = NULL;
+    HBRUSH surface, search_surface, category_surfaces[2], divider_surfaces[2];
     HPEN pen, old_pen;
     int index, sequence;
     TCHAR date[64];
@@ -900,6 +921,8 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
     search_surface = CreateSolidBrush(RGB(255, 255, 224));
     category_surfaces[0] = CreateSolidBrush(RGB(160, 160, 160));
     category_surfaces[1] = CreateSolidBrush(RGB(88, 88, 88));
+    divider_surfaces[0] = CreateSolidBrush(RGB(184, 134, 11));      /* DarkGoldenrod: the date changes */
+    divider_surfaces[1] = CreateSolidBrush(RGB(218, 165, 32));      /* Goldenrod: only AM/PM changes */
     category_font = CreateFont(-tile_scale(window, 14), 0, 0, 0, FW_BOLD,
         FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         CLEARTYPE_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
@@ -946,6 +969,17 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
             SetTextColor(context, dark_mode_get_color(COLOR_WINDOWTEXT));
             DrawText(context, date, -1, &bounds, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
             {
+                int older;
+                HBRUSH arrow_brush;
+                BOOL new_day = TRUE;
+                for (older = index + 1; older < view->count; older++) {
+                    const SYSTEMTIME *other = &view->entries[older].date;
+                    if (tile_same_period(other, &entry->date)) continue;
+                    new_day = other->wYear != entry->date.wYear || other->wMonth != entry->date.wMonth ||
+                        other->wDay != entry->date.wDay;
+                    break;
+                }
+                arrow_brush = divider_surfaces[new_day ? 0 : 1];
                 int middle = (bounds.top + bounds.bottom) / 2;
                 int tip_x = bounds.left + tile_scale(window, 100);
                 int head = tile_scale(window, 10), half = tile_scale(window, 5), thick = max(1, tile_scale(window, 1));
@@ -953,14 +987,14 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
                 RECT shaft;
                 HGDIOBJ previous_pen, previous_brush;
                 SetRect(&shaft, tip_x + head, middle - thick / 2, bounds.right, middle - thick / 2 + thick);
-                FillRect(context, &shaft, category_surfaces[1]);
+                FillRect(context, &shaft, arrow_brush);
                 tip[0].x = tip_x;
                 tip[0].y = middle;
                 tip[1].x = tip[2].x = tip_x + head;
                 tip[1].y = middle - half;
                 tip[2].y = middle + half;
                 previous_pen = SelectObject(context, GetStockObject(NULL_PEN));
-                previous_brush = SelectObject(context, category_surfaces[1]);
+                previous_brush = SelectObject(context, arrow_brush);
                 Polygon(context, tip, 3);
                 SelectObject(context, previous_brush);
                 SelectObject(context, previous_pen);
@@ -1002,11 +1036,18 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
             if (large == NULL) large = CreateFont(-tile_scale(window, 28), 0, 0, 0, FW_NORMAL,
                 FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                 CLEARTYPE_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
-            previous = SelectObject(context, entry->kind == 6 ? view->font : large);
+            previous = SelectObject(context, entry->kind == CLIP_PANEL_TYPE1_W408_H24 ? view->font : large);
             SetTextColor(context, dark_mode_get_color(COLOR_WINDOWTEXT));
-            DrawText(context, TEXT("+"), -1, &text_bounds, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            {
+                RECT plus = text_bounds;
+                /* The 48px panel is too short for a big "+" under the name: move it down. */
+                if (entry->kind == CLIP_PANEL_TYPE2_W200_H48) plus.top += tile_scale(window, 12);
+                /* The one-line panel keeps the name in the middle, so its "+" goes to the left edge. */
+                DrawText(context, TEXT("+"), -1, &plus, (entry->kind == CLIP_PANEL_TYPE1_W408_H24 ? DT_LEFT : DT_CENTER) |
+                    DT_VCENTER | DT_SINGLELINE);
+            }
             SelectObject(context, previous);
-            if (entry->kind == 4 || entry->kind == 5) {
+            if (CLIP_PANEL_IMAGE_ONLY(entry->kind)) {
                 RECT label = text_bounds;
                 if (label_font == NULL) label_font = CreateFont(-tile_scale(window, 16), 0, 0, 0, FW_MEDIUM,
                     FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -1015,6 +1056,29 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
                 label.top = (text_bounds.top + text_bounds.bottom) / 2 + tile_scale(window, 20);
                 SetTextColor(context, RGB(128, 128, 128));
                 DrawText(context, TEXT("image only"), -1, &label, DT_CENTER | DT_WORDBREAK | DT_NOPREFIX);
+                SelectObject(context, previous);
+            }
+            if (entry->kind >= CLIP_PANEL_TYPE1_W408_H24 && entry->kind <= CLIP_PANEL_TYPE_COUNT) {
+                RECT name = text_bounds;
+                TCHAR name_text[64];
+                BOOL narrow = name.right - name.left < tile_scale(window, 150);
+                BOOL one_line = bounds.bottom - bounds.top <= tile_scale(window, 24);
+                if (name_font == NULL) name_font = CreateFont(-tile_scale(window, 11), 0, 0, 0, FW_NORMAL,
+                    FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                    CLEARTYPE_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
+                if (narrow) {
+                    /* Two short lines: TYPE5_ / W96_H200 */
+                    const TCHAR *base = clip_panel_names[entry->kind - 1];
+                    const TCHAR *cut = _tcschr(base, TEXT('_'));
+                    int head = cut != NULL ? (int)(cut - base) + 1 : lstrlen(base);
+                    TCHAR head_text[16];
+                    lstrcpyn(head_text, base, head + 1);
+                    wsprintf(name_text, TEXT("%s\r\n%s"), head_text, base + head);
+                } else lstrcpy(name_text, clip_panel_names[entry->kind - 1]);
+
+                previous = SelectObject(context, name_font);
+                SetTextColor(context, RGB(128, 128, 128));
+                DrawText(context, name_text, -1, &name, DT_CENTER | DT_NOPREFIX | (one_line ? DT_VCENTER | DT_SINGLELINE : DT_TOP));
                 SelectObject(context, previous);
             }
         } else if (entry->image != NULL) {
@@ -1069,9 +1133,12 @@ static void tile_paint(HWND window, TILE_VIEW *view, HDC target)
     DeleteObject(search_surface);
     DeleteObject(category_surfaces[0]);
     DeleteObject(category_surfaces[1]);
+    DeleteObject(divider_surfaces[0]);
+    DeleteObject(divider_surfaces[1]);
     DeleteObject(category_font);
     if (large != NULL) DeleteObject(large);
     if (label_font != NULL) DeleteObject(label_font);
+    if (name_font != NULL) DeleteObject(name_font);
     if (source != NULL) DeleteDC(source);
     DeleteObject(buffer);
     DeleteDC(context);
@@ -1154,7 +1221,13 @@ static LRESULT CALLBACK tile_proc(HWND window, UINT message, WPARAM parameter, L
                 SetFocus(window);
                 InvalidateRect(window, NULL, FALSE);
                 if (view->samples) {
-                    return message == WM_LBUTTONUP ? SendMessage(GetParent(window), WM_TILE_SAMPLE, entry->kind, (LPARAM)entry->item) : 0;
+                    if (message != WM_LBUTTONUP) return 0;
+                    if (entry->item != NULL && point.x >= entry->bounds.right - tile_scale(window, 24) &&
+                        point.y < entry->bounds.top + tile_scale(window, 24)) {
+                        return SendMessage(GetParent(window), WM_TILE_DEBUG_DELETE, entry->kind, (LPARAM)entry->item);
+                    }
+                    return SendMessage(GetParent(window), entry->item == NULL ? WM_TILE_DEBUG_NEW : WM_TILE_SAMPLE,
+                        entry->kind, (LPARAM)entry->item);
                 }
                 if (view->favorites) {
                     notification = entry->item == NULL ? WM_TILE_NEW : message == WM_RBUTTONUP ? WM_TILE_EDIT : WM_TILE_PASTE;
@@ -1182,8 +1255,8 @@ static LRESULT CALLBACK tile_proc(HWND window, UINT message, WPARAM parameter, L
         }
         if (parameter == VK_RETURN && view->selected >= 0 && view->selected < view->count) {
             TILE_ENTRY *entry = &view->entries[view->selected];
-            return SendMessage(GetParent(window), view->samples ? WM_TILE_SAMPLE : entry->item == NULL ? WM_TILE_NEW : WM_TILE_PASTE,
-                entry->kind, (LPARAM)entry->item);
+            return SendMessage(GetParent(window), view->samples ? (entry->item == NULL ? WM_TILE_DEBUG_NEW : WM_TILE_SAMPLE) :
+                entry->item == NULL ? WM_TILE_NEW : WM_TILE_PASTE, entry->kind, (LPARAM)entry->item);
         }
         break;
     case WM_SETFOCUS:

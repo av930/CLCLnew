@@ -3130,7 +3130,7 @@ static BOOL viewer_initialize(const HWND hWnd)
 	HWND hTreeView;
 	HWND tabs;
 	TCITEM tab_item;
-	const TCHAR *tab_names[] = { TEXT("ClipManager"), TEXT("FavoriteClips"), TEXT("PastePlus"), TEXT("Symbols"), TEXT("ClipSample"), TEXT("Setting") };
+	const TCHAR *tab_names[] = { TEXT("ClipManager"), TEXT("FavoriteClips"), TEXT("PastePlus"), TEXT("Symbols"), TEXT("Debug"), TEXT("Setting") };
 	TCHAR buf[BUF_SIZE];
 	TCHAR *str_menu;
 	TCHAR *str_hkey;
@@ -3145,6 +3145,12 @@ static BOOL viewer_initialize(const HWND hWnd)
 	for (i = 0; i < 6; i++) {
 		tab_item.pszText = (TCHAR *)tab_names[i];
 		TabCtrl_InsertItem(tabs, i, &tab_item);
+	}
+	{
+		/* The default item height (18px) clips the top of the text: make every item 2px taller. */
+		RECT item_rect;
+		TabCtrl_GetItemRect(tabs, 0, &item_rect);
+		TabCtrl_SetItemSize(tabs, item_rect.right - item_rect.left, item_rect.bottom - item_rect.top + Scale(2));
 	}
 	viewer_create_settings(hWnd);
 	tileview_create(hInst, hWnd, ID_CLIPMASTER_TILES);
@@ -3303,8 +3309,8 @@ static void viewer_set_controls(const HWND hWnd)
 
 	sep_size = Scale(option.viewer_sep_size);
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_TABS), 0, toolbar_size,
-		window_rect.right, Scale(30), TRUE);
-	toolbar_size += Scale(34);
+		window_rect.right, Scale(32), TRUE);
+	toolbar_size += Scale(36);
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_PANEL), 0, toolbar_size,
 		window_rect.right, max(0, (int)(window_rect.bottom - statusbar_size - toolbar_size)), TRUE);
 	MoveWindow(GetDlgItem(hWnd, ID_CLIPMASTER_FAVORITES), 0, toolbar_size,
@@ -3806,6 +3812,34 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 			}
 			if (option.history_save == 1 && option.history_always_save == 1) SendMessage(hWnd, WM_HISTORY_SAVE, 0, 0);
 			SendMessage(hWnd, WM_HISTORY_CHANGED, 0, 0);
+		}
+		break;
+
+	case WM_TILE_DEBUG_NEW:
+		/* A "+" panel of the Debug tab: build a panel of the chosen type and add it to the debug list (not saved).
+		   Like a new favorite, it goes to the front of the list. */
+		{
+			DATA_INFO *added = clipedit_show(hInst, hWnd, NULL, (int)wParam);
+			if (added == NULL) break;
+			mem_free(&added->window_name);
+			added->next = sample_data;
+			sample_data = added;
+			tileview_refresh(GetDlgItem(hWnd, ID_CLIPMASTER_SAMPLES), sample_data);
+		}
+		break;
+
+	case WM_TILE_DEBUG_DELETE:
+		/* The x button of a Debug tab panel: remove it from the debug list (session only). */
+		{
+			DATA_INFO **link = &sample_data;
+			while (*link != NULL && *link != (DATA_INFO *)lParam) link = &(*link)->next;
+			if (*link != NULL) {
+				DATA_INFO *removed = *link;
+				*link = removed->next;
+				removed->next = NULL;
+				data_free(removed);
+				tileview_refresh(GetDlgItem(hWnd, ID_CLIPMASTER_SAMPLES), sample_data);
+			}
 		}
 		break;
 
