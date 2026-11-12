@@ -49,6 +49,11 @@ struct FormatTile {
 
 struct PastePane {
     DATA_INFO *snapshot = nullptr;
+    std::vector<DATA_INFO *> image_clips;   /* clips holding an image, newest first; valid until the next refresh */
+    size_t next_image = 0;                  /* index in image_clips read by the next "Extract text" */
+    FILETIME ocr_clip_time = {};
+    size_t ocr_clip_number = 0;
+    HWND extracted = nullptr;               /* shows the extracted text */
     std::vector<FormatTile> tiles;
     HWND information = nullptr;
     HWND status = nullptr;
@@ -448,6 +453,8 @@ static void pane_clear(PastePane *pane)
     pane->tiles.clear();
     data_free(pane->snapshot);
     pane->snapshot = nullptr;
+    pane->image_clips.clear();
+    pane->next_image = 0;
 }
 
 static LRESULT CALLBACK format_tile_proc(HWND window, UINT message, WPARAM parameter, LPARAM data,
@@ -583,7 +590,7 @@ static void symbols_layout(HWND window, SymbolsPane *pane)
     pane->layout = true;
     RECT client;
     GetClientRect(window, &client);
-    int margin = pane_scale(window, 16), gap = pane_scale(window, 6), size = pane_scale(window, 66);
+    int margin = pane_scale(window, 16), gap = pane_scale(window, 6), size = pane_scale(window, 53);
     int available = max(1, client.right - margin * 2);
     int columns = max(1, (available + gap) / (size + gap));
     int top = margin;
@@ -738,12 +745,13 @@ static void pane_layout(HWND window, PastePane *pane)
     int available = max(1, client.right - margin * 2);
     int button_width = min(pane_scale(window, 148), available);
     int button_height = pane_scale(window, 36);
-    int information_top = margin + button_height + gap;
-    int status_top = information_top + pane_scale(window, 44) + gap;
-    int tiles_top = status_top + pane_scale(window, 32) + gap;
+    int status_top = margin + button_height + gap;
+    int information_top = status_top + pane_scale(window, 32) + gap;
+    int tiles_top = information_top + pane_scale(window, 44) + gap;
     pane_place(pane->extract_text, margin, margin, button_width, button_height);
-    pane_place(pane->information, margin, information_top, available, pane_scale(window, 44));
+    pane_place(pane->extracted, margin + button_width + gap, margin, max(1, available - button_width - gap), button_height);
     pane_place(pane->status, margin, status_top, available, pane_scale(window, 32));
+    pane_place(pane->information, margin, information_top, available, pane_scale(window, 44));
     for (size_t index = 0; index < pane->tiles.size(); index++) {
         int left = margin + static_cast<int>(index % columns) * (size + gap);
         int top = tiles_top + static_cast<int>(index / columns) * (size + gap) - pane->offset;
@@ -795,13 +803,38 @@ static bool pane_text_copy(HWND window, const std::wstring &text)
     return copied;
 }
 
+static std::wstring clip_date_text(const FILETIME &stamp)
+{
+    SYSTEMTIME captured;
+    wchar_t text[48] = L"";
+    if (FileTimeToSystemTime(&stamp, &captured))
+        wsprintf(text, L"%04d-%02d-%02d %02d:%02d:%02d", captured.wYear, captured.wMonth, captured.wDay,
+            captured.wHour, captured.wMinute, captured.wSecond);
+    return text;
+}
+
+static std::wstring edit_line_breaks(const std::wstring &text)
+{
+    std::wstring result;
+    for (size_t index = 0; index < text.size(); index++) {
+        if (text[index] == L'\r') continue;
+        if (text[index] == L'\n') result += L"\r\n";
+        else result += text[index];
+    }
+    return result;
+}
+
+/* Reads the next older image clip each time it is pressed; the first press uses the newest one. */
 static void pane_extract_text(HWND window, PastePane *pane)
 {
-    DATA_INFO *format = nullptr;
-    if (pane->snapshot) for (DATA_INFO *item = pane->snapshot->child; item; item = item->next)
-        if (format_is_ocr_image(item)) { format = item; break; }
-    if (!format) { SetWindowText(pane->status, L"No image is available in this clip."); return; }
-    DATA_INFO *image = data_item_copy(format, FALSE, FALSE, nullptr);
+    if (pane->image_clips.empty()) { SetWindowText(pane->status, L"No image clip exists."); return; }
+    if (pane->next_image >= pane->image_clips.size()) { SetWindowText(pane->status, L"No older image clip."); return; }
+    DATA_INFO *clip = pane->image_clips[pane->next_image], *format = nullptr;
+    for (DATA_INFO *candidate = clip->child; candidate; candidate = candidate->next)
+        if (format_is_ocr_image(candidate)) { format = candidate; break; }
+    pane->ocr_clip_time = clip->modified;
+    pane->ocr_clip_number = ++pane->next_image;
+    DATA_INFO *image = format ? data_item_copy(format, FALSE, FALSE, nullptr) : nullptr;
     if (!image) { SetWindowText(pane->status, L"Could not prepare the image for OCR."); return; }
     pane->ocr_running = true;
     EnableWindow(pane->extract_text, FALSE);
@@ -845,6 +878,7 @@ static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, L
         pane->information = pane_control(window, L"STATIC", L"", SS_LEFT, 100);
         pane->status = pane_control(window, L"STATIC", L"", SS_LEFT, 101);
         pane->extract_text = pane_control(window, L"BUTTON", L"Extract text", BS_OWNERDRAW | WS_TABSTOP, 102);
+        pane->extracted = pane_control(window, L"EDIT", L"", ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL | WS_TABSTOP, 103);
         return 0;
     }
     if (!pane) return DefWindowProc(window, message, parameter, data);
@@ -922,19 +956,36 @@ static LRESULT CALLBACK pane_proc(HWND window, UINT message, WPARAM parameter, L
     case WM_PASTEPLUS_OCR_DONE: {
         OcrCompletion *completion = reinterpret_cast<OcrCompletion *>(data);
         pane->ocr_running = false;
-        BOOL has_image = FALSE;
-        if (pane->snapshot) for (DATA_INFO *item = pane->snapshot->child; item; item = item->next)
-            if (format_is_ocr_image(item)) { has_image = TRUE; break; }
-        EnableWindow(pane->extract_text, has_image);
+        EnableWindow(pane->extract_text, !pane->image_clips.empty());
         if (completion) {
+            wchar_t position[96];
+            std::wstring message;
+            wsprintf(position, L"Image clip %d of %d (", static_cast<int>(pane->ocr_clip_number),
+                static_cast<int>(pane->image_clips.size()));
+            message = std::wstring(position) + clip_date_text(pane->ocr_clip_time) + L"): ";
             if (!completion->text.empty()) {
-                SetWindowText(pane->status, pane_text_copy(window, completion->text) ?
-                    L"Text extracted and copied to the clipboard." : L"Text was extracted but could not be copied.");
-            } else SetWindowText(pane->status, completion->error.c_str());
+                SetWindowText(pane->extracted, edit_line_breaks(completion->text).c_str());
+                message += pane_text_copy(window, completion->text) ? L"text extracted and copied to the clipboard." :
+                    L"text was extracted but could not be copied.";
+            } else {
+                SetWindowText(pane->extracted, L"");
+                message += completion->error;
+            }
+            if (pane->ocr_clip_number < pane->image_clips.size()) message += L" Press Extract text again for an older image.";
+            SetWindowText(pane->status, message.c_str());
             delete completion;
         }
         return 0;
     }
+    case WM_CTLCOLORSTATIC:
+        /* A read-only edit would be drawn gray; the extracted text box stays white like an input box. */
+        if (reinterpret_cast<HWND>(data) == pane->extracted) {
+            HDC context = reinterpret_cast<HDC>(parameter);
+            SetTextColor(context, dark_mode_get_color(COLOR_WINDOWTEXT));
+            SetBkColor(context, dark_mode_get_color(COLOR_WINDOW));
+            return reinterpret_cast<LRESULT>(dark_mode_get_brush(COLOR_WINDOW));
+        }
+        break;
     case WM_NCDESTROY:
         pane_clear(pane);
         delete pane;
@@ -981,6 +1032,16 @@ extern "C" void pasteplus_refresh(HWND window, DATA_INFO *item)
             if (!copy) continue;
             *tail = copy;
             tail = &copy->next;
+        }
+    }
+    /* Image clips, newest first: "Extract text" starts with the current clip if it holds an image,
+       otherwise with the newest clip that does, and each further press goes one image older. */
+    for (DATA_INFO *clip = item; clip; clip = clip->next) {
+        if (clip->type != TYPE_ITEM) continue;
+        for (DATA_INFO *format = clip->child; format; format = format->next) {
+            if (!format_is_ocr_image(format)) continue;
+            pane->image_clips.push_back(clip);
+            break;
         }
     }
     int total = 0, duplicate = 0, unavailable = 0, pasteable = 0;
@@ -1034,11 +1095,13 @@ extern "C" void pasteplus_refresh(HWND window, DATA_INFO *item)
     wsprintf(information, L"%s\r\nFormats: %d    Duplicates / Unicode aliases: %d    Pasteable: %d    Unavailable: %d",
         *date ? date : L"No captured clip", total, duplicate, pasteable, unavailable);
     SetWindowText(pane->information, information);
-    BOOL has_image = FALSE;
-    if (pane->snapshot) for (DATA_INFO *format = pane->snapshot->child; format; format = format->next)
-        if (format_is_ocr_image(format)) { has_image = TRUE; break; }
-    EnableWindow(pane->extract_text, !pane->ocr_running);
-    SetWindowText(pane->status, L"");
+    EnableWindow(pane->extract_text, !pane->ocr_running && !pane->image_clips.empty());
+    SetWindowText(pane->extracted, L"");
+    if (pane->image_clips.empty()) SetWindowText(pane->status, L"No image clip exists.");
+    else if (pane->image_clips[0] != item)
+        SetWindowText(pane->status, (L"Extract text starts with the newest image clip (" +
+            clip_date_text(pane->image_clips[0]->modified) + L").").c_str());
+    else SetWindowText(pane->status, L"");
     pane_layout(window, pane);
 }
 

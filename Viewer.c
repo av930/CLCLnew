@@ -3738,8 +3738,7 @@ static LRESULT CALLBACK viewer_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 		break;
 
 	case WM_PASTEPLUS_COPY:
-		if (lParam != 0) SendMessage(main_wnd, WM_ITEM_TO_CLIPBOARD_EXACT, 0, lParam);
-		break;
+		return lParam != 0 ? SendMessage(main_wnd, WM_ITEM_TO_CLIPBOARD_EXACT, 0, lParam) : FALSE;
 
 	case WM_TILE_NEW:
 	case WM_TILE_EDIT:

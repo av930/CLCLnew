@@ -1041,7 +1041,15 @@ static BOOL clipboard_to_history(const HWND hWnd)
 	// 履歴に追加
 	clipboard_apply_unicode_handler(di);
 	if (history_add(&history_data.child, di, (cp_tmi.enable == TRUE) ? FALSE : TRUE) == FALSE) {
+		// 重複: 既存アイテムを先頭へ移動して表示する
+		BOOL moved = history_move_duplicate_first(&history_data.child, di);
 		data_free(di);
+		if (moved == TRUE) {
+			if (option.history_save == 1 && option.history_always_save == 1) {
+				SendMessage(hWnd, WM_HISTORY_SAVE, 0, 0);
+			}
+			SendMessage(hWnd, WM_HISTORY_CHANGED, 0, 0);
+		}
 		return TRUE;
 	}
 	// 履歴に追加された時に実行するツール

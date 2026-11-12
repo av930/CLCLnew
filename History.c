@@ -35,7 +35,7 @@ extern OPTION_INFO option;
 static BOOL history_format_equal(DATA_INFO *d1, DATA_INFO *d2);
 static BOOL history_compare(DATA_INFO *d1, DATA_INFO *d2);
 static BOOL history_includes(DATA_INFO *item, DATA_INFO *part);
-static BOOL history_overlap_check(DATA_INFO **root, DATA_INFO *new_item);
+static DATA_INFO **history_find_duplicate(DATA_INFO **root, DATA_INFO *new_item);
 
 /*
  * history_format_equal - 形式ごとのデータの比較
@@ -108,10 +108,11 @@ static BOOL history_includes(DATA_INFO *item, DATA_INFO *part)
 }
 
 /*
- * history_overlap_check - 履歴の重複チェック
+ * history_find_duplicate - 履歴の重複アイテムを検索 (見つからなければ NULL)
  */
-static BOOL history_overlap_check(DATA_INFO **root, DATA_INFO *new_item)
+static DATA_INFO **history_find_duplicate(DATA_INFO **root, DATA_INFO *new_item)
 {
+	DATA_INFO **link;
 	DATA_INFO *di;
 	FILETIME now_file;
 	SYSTEMTIME now_system;
@@ -123,16 +124,16 @@ static BOOL history_overlap_check(DATA_INFO **root, DATA_INFO *new_item)
 			di->format == CF_ENHMETAFILE || di->format == CF_METAFILEPICT ||
 			(di->format_name && (!lstrcmpi(di->format_name, TEXT("PNG")) || !lstrcmpi(di->format_name, TEXT("JFIF")) ||
 			 !lstrcmpi(di->format_name, TEXT("JPEG")) || !lstrcmpi(di->format_name, TEXT("GIF")) ||
-			 !lstrcmpi(di->format_name, TEXT("TIFF"))))) return TRUE;
+			 !lstrcmpi(di->format_name, TEXT("TIFF"))))) return NULL;
 	}
 	if (*root == NULL || option.config_duplicate_policy == 0) {
-		return TRUE;
+		return NULL;
 	}
 	GetLocalTime(&now_system);
 	SystemTimeToFileTime(&now_system, &now_file);
 	now_value.LowPart = now_file.dwLowDateTime;
 	now_value.HighPart = now_file.dwHighDateTime;
-	for (di = *root; di != NULL; di = di->next) {
+	for (link = root; (di = *link) != NULL; link = &di->next) {
 		if (option.config_duplicate_policy == 2) {
 			item_value.LowPart = di->modified.dwLowDateTime;
 			item_value.HighPart = di->modified.dwHighDateTime;
@@ -142,9 +143,36 @@ static BOOL history_overlap_check(DATA_INFO **root, DATA_INFO *new_item)
 		}
 		}
 		if (history_compare(di, new_item) == TRUE) {
-			return FALSE;
+			return link;
 		}
 	}
+	return NULL;
+}
+
+/*
+ * history_overlap_check - 履歴の重複チェック (追加してよければ TRUE)
+ */
+static BOOL history_overlap_check(DATA_INFO **root, DATA_INFO *new_item)
+{
+	return history_find_duplicate(root, new_item) == NULL;
+}
+
+/*
+ * history_move_duplicate_first - 重複する既存アイテムの日時を更新して先頭へ移動 (重複がなければ FALSE)
+ */
+BOOL history_move_duplicate_first(DATA_INFO **root, DATA_INFO *new_item)
+{
+	DATA_INFO **link;
+	DATA_INFO *di;
+
+	if ((link = history_find_duplicate(root, new_item)) == NULL) {
+		return FALSE;
+	}
+	di = *link;
+	*link = di->next;
+	data_set_modified(di);
+	di->next = *root;
+	*root = di;
 	return TRUE;
 }
 
